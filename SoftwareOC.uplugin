@@ -1,0 +1,24 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "0.0.1",
+	"FriendlyName": "SoftwareOC",
+	"Description": "Software Occlusion Culling in UE5",
+	"Category": "Other",
+	"CreatedBy": "Archie Jaskowicz",
+	"CreatedByURL": "https://jaskowicz.xyz",
+	"DocsURL": "https://github.com/Jaskowicz1/SoftwareOC-UE/wiki",
+	"MarketplaceURL": "",
+	"SupportURL": "",
+	"CanContainContent": false,
+	"IsBetaVersion": true,
+	"IsExperimentalVersion": true,
+	"Installed": false,
+	"Modules": [
+		{
+			"Name": "SoftwareOC",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		}
+	]
+}
