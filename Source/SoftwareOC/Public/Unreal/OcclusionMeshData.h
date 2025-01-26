@@ -2,11 +2,6 @@
 
 #include "OcclusionMeshData.generated.h"
 
-typedef TArray<FVector> FOccluderVertexArray;
-typedef TArray<uint16> FOccluderIndexArray;
-typedef TSharedPtr<FOccluderVertexArray, ESPMode::ThreadSafe> FOccluderVertexArraySP;
-typedef TSharedPtr<FOccluderIndexArray, ESPMode::ThreadSafe> FOccluderIndexArraySP;
-
 USTRUCT()
 struct FOcclusionMeshData
 {
@@ -18,6 +13,11 @@ public:
 
 	FOcclusionMeshData(const UStaticMesh* Mesh)
 	{
+		if(!Mesh)
+		{
+			return;
+		}
+		
 		// Archie - This TO-DO is left in by unreal, though, it still is a thing to maybe implement.
 		// TODO: Custom geometry for occluder mesh?
 		//int32 LODIndex = FMath::Min(Owner->LODForOccluderMesh, Owner->GetRenderData()->LODResources.Num()-
@@ -30,27 +30,27 @@ public:
 		
 		if (NumVtx > 0 && NumIndices > 0 && !IndexBuffer.Is32Bit())
 		{
-			VerticesSP->SetNumUninitialized(NumVtx);
+			Vertices.SetNumUninitialized(NumVtx);
 
 			const FVector3f* V0 = &LODModel.VertexBuffers.PositionVertexBuffer.VertexPosition(0);
 
-			IndicesSP->SetNumUninitialized(NumIndices);
+			Indices.SetNumUninitialized(NumIndices);
 			const uint16* Indices = IndexBuffer.AccessStream16();
 
-			FMemory::Memcpy(VerticesSP->GetData(), V0, NumVtx*sizeof(FVector));
-			FMemory::Memcpy(IndicesSP->GetData(), Indices, NumIndices*sizeof(uint16));
+			FMemory::Memcpy(Vertices.GetData(), V0, NumVtx*sizeof(FVector));
+			FMemory::Memcpy(Indices.GetData(), Indices, NumIndices*sizeof(uint16));
 		}
 	}
 
-	FMatrix					LocalToWorld;
-	FOccluderVertexArraySP	VerticesSP;
-	FOccluderIndexArraySP   IndicesSP;
+	FMatrix					LocalToWorld{};
+	TArray<FVector>			Vertices;
+	TArray<uint16>			Indices;
 	FPrimitiveComponentId	PrimId;
 };
 
 struct FPotentialOccluderPrimitive
 {
-	const FPrimitiveSceneInfo* PrimitiveSceneInfo;
-	FOcclusionMeshData OccluderData; // Because unreal removed this from individual proxies. ugh.
-	float Weight;
+	const FPrimitiveSceneInfo* PrimitiveSceneInfo = nullptr;
+	FOcclusionMeshData OccluderData{}; // Because unreal removed this from individual proxies. ugh.
+	float Weight{ 0.f };
 };

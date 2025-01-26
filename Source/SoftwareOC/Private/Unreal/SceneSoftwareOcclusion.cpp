@@ -627,12 +627,12 @@ static void ProcessOccluderGeom(const FOcclusionSceneData& SceneData, FOcclusion
 	for (int32 MeshIdx = 0; MeshIdx < NumMeshes; ++MeshIdx)
 	{
 		const FOcclusionMeshData& Mesh = MeshData[MeshIdx];
-		int32 NumVtx = Mesh.VerticesSP->Num();
+		int32 NumVtx = Mesh.VerticesSP.Num();
 		
 		ClipVertexBuffer.SetNumUninitialized(NumVtx, false);
 		ClipVertexFlagsBuffer.SetNumUninitialized(NumVtx, false);
 
-		const FVector* MeshVertices = Mesh.VerticesSP->GetData();
+		const FVector* MeshVertices = Mesh.VerticesSP.GetData();
 		FVector4* MeshClipVertices = ClipVertexBuffer.GetData();
 		uint8*	MeshClipVertexFlags = ClipVertexFlagsBuffer.GetData();
 		
@@ -667,8 +667,8 @@ static void ProcessOccluderGeom(const FOcclusionSceneData& SceneData, FOcclusion
 			}
 		}
 	
-		const uint16* MeshIndices = Mesh.IndicesSP->GetData();
-		int32 NumTris = Mesh.IndicesSP->Num()/3;
+		const uint16* MeshIndices = Mesh.IndicesSP.GetData();
+		int32 NumTris = Mesh.IndicesSP.Num()/3;
 		int32 NumDataTris = OutData.ScreenTriangles.Num();
 
 		// Create triangles
@@ -780,7 +780,7 @@ public:
 		CurrentPrimitiveId = PrimitiveId;
 	}
 
-	virtual void AddElements(const FOccluderVertexArraySP& Vertices, const FOccluderIndexArraySP& Indices, const FMatrix& LocalToWorld) override 
+	virtual void AddElements(const TArray<FVector>& Vertices, const TArray<uint16>& Indices, const FMatrix& LocalToWorld) override 
 	{
 		SceneData.OccluderData.AddDefaulted();
 		FOcclusionMeshData& MeshData = SceneData.OccluderData.Last();
@@ -790,7 +790,7 @@ public:
 		MeshData.VerticesSP = Vertices;
 		MeshData.IndicesSP = Indices;
 
-		SceneData.NumOccluderTriangles+= Indices->Num()/3;
+		SceneData.NumOccluderTriangles+= Indices.Num()/3;
 	}
 
 public:
@@ -1008,6 +1008,27 @@ static FGraphEventRef SubmitScene(const FScene* Scene, const FViewInfo& View, FO
 				FPotentialOccluderPrimitive& PotentialOccluder = PotentialOccluders.Last();
 
 				PotentialOccluder.PrimitiveSceneInfo = PrimitiveSceneInfo;
+				// Only issue is, this may be laggy if many objects. Need to find a better way to do this.
+				for(TObjectIterator<UStaticMeshComponent> StaticMeshItr; StaticMeshItr; ++StaticMeshItr)
+				{
+					UStaticMeshComponent* Component = *StaticMeshItr;
+					if (!IsValid(Component) || !Component->GetStaticMesh())
+					{
+						continue;
+					}
+
+					if(Component->GetWorld() != Scene->GetWorld())
+					{
+						continue;
+					}
+					
+					if (Component->GetStaticMesh()->GetName() == Proxy->GetResourceName())
+					{
+						FOcclusionMeshData MeshData = FOcclusionMeshData(Component->GetStaticMesh());
+						PotentialOccluder.OccluderData = MeshData;
+						break;
+					}
+				}
 				PotentialOccluder.Weight = ComputePotentialOccluderWeight(ScreenSize, DistanceSquared);
 			}
 			
@@ -1207,9 +1228,9 @@ int32 FSceneSoftwareOcclusion::CollectOccluderElements(FOccluderElementsCollecto
 		return 0;
 	}
 	*/
-
-	if (!PotentialOccluder.OccluderData.IndicesSP->IsEmpty())
-	{	
+	
+	if (!PotentialOccluder.OccluderData.VerticesSP.IsEmpty() && !PotentialOccluder.OccluderData.IndicesSP.IsEmpty())
+	{
 		Collector.AddElements(PotentialOccluder.OccluderData.VerticesSP, PotentialOccluder.OccluderData.IndicesSP, Proxy->GetLocalToWorld());
 		return 1;
 	}

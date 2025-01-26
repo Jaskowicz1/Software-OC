@@ -3,22 +3,22 @@
 
 #include "SoftwareOCSubsystem.h"
 
+#include "SceneViewExtension.h"
 #include "SoftwareOCSettings.h"
+#include "Runtime/Renderer/Private/ScenePrivate.h"
 #include "Runtime/Renderer/Private/SceneRendering.h"
 #include "Unreal/SceneSoftwareOcclusion.h"
-
-static FSceneSoftwareOcclusion* SceneSoftwareOcclusion;
 
 void USoftwareOCSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
 
-	SceneSoftwareOcclusion = new FSceneSoftwareOcclusion{};
-
 	if(GetWorld() && GetLocalPlayer() && GetLocalPlayer()->GetPlayerController(GetWorld()))
 	{
 		PlayerCameraManager = GetLocalPlayer()->GetPlayerController(GetWorld())->PlayerCameraManager;
 	}
+
+	OcclusionSceneViewExtension = FSceneViewExtensions::NewExtension<FOcclusionSceneViewExtension>();
 }
 
 void USoftwareOCSubsystem::Deinitialize()
@@ -26,7 +26,6 @@ void USoftwareOCSubsystem::Deinitialize()
 	Super::Deinitialize();
 
 	PlayerCameraManager = nullptr;
-	delete SceneSoftwareOcclusion;
 }
 
 void USoftwareOCSubsystem::PlayerControllerChanged(APlayerController* NewPlayerController)
@@ -43,40 +42,4 @@ TStatId USoftwareOCSubsystem::GetStatId() const
 
 void USoftwareOCSubsystem::Tick(float DeltaTime)
 {
-	const USoftwareOCSettings* OcclusionSettings = GetDefault<USoftwareOCSettings>();
-
-	if (!OcclusionSettings->bEnableOcclusion)
-	{
-		return;
-	}
-
-	if (!GetLocalPlayer() || !PlayerCameraManager || !GetWorld())
-	{
-		return;
-	}
-
-	FSceneViewFamilyContext ViewFamily(FSceneViewFamily::ConstructionValues(
-		GetLocalPlayer()->ViewportClient->Viewport,
-		GetWorld()->Scene,
-		GetLocalPlayer()->ViewportClient->EngineShowFlags)
-		.SetRealtimeUpdate(true));
-	
-	uint8 ViewBit = 0x1;
-	for (int32 ViewIndex = 0; ViewIndex < ViewFamily.AllViews.Num(); ++ViewIndex, ViewBit <<= 1)
-	{
-		const FSceneView* SceneView = ViewFamily.AllViews[ViewIndex];
-		if (!SceneView->bIsViewInfo)
-		{
-			continue;
-		}
-
-		// Sneaky way to bypass const because the constructor causes a compile fail.
-		FViewInfo* View = (FViewInfo*)(&SceneView);
-		SceneSoftwareOcclusion->Process(ViewFamily.Scene->GetRenderScene(), *View);
-		
-		ViewFamily.Views.Add(View);
-	}
-	
-	//GetLocalPlayer()->GetWorld()->GetFirstPlayerController()->GetPlayerC
-	//SceneSoftwareOcclusion->Process(GetScene());
 }

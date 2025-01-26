@@ -3,8 +3,8 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "OcclusionSceneView.h"
 #include "Subsystems/LocalPlayerSubsystem.h"
-#include "Unreal/SceneSoftwareOcclusion.h"
 #include "SoftwareOCSubsystem.generated.h"
 
 UCLASS()
@@ -27,4 +27,6 @@ private:
 	
 	UPROPERTY()
 	APlayerCameraManager* PlayerCameraManager;
+
+	TSharedPtr< class FOcclusionSceneViewExtension, ESPMode::ThreadSafe > OcclusionSceneViewExtension;
 };

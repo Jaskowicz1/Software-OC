@@ -15,7 +15,7 @@ class FOccluderElementsCollector
 {
 public:
 	virtual ~FOccluderElementsCollector() {};
-	virtual void AddElements(const FOccluderVertexArraySP& Vertices, const FOccluderIndexArraySP& Indices, const FMatrix& LocalToWorld)
+	virtual void AddElements(const TArray<FVector>& Vertices, const TArray<uint16>& Indices, const FMatrix& LocalToWorld)
 	{}
 };
 
