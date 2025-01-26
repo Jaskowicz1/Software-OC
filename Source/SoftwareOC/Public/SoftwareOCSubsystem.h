@@ -16,11 +16,15 @@ public:
 
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
+
+	virtual void PlayerControllerChanged(APlayerController* NewPlayerController) override;
+
+	virtual TStatId GetStatId() const override;
 	
 	virtual void Tick(float DeltaTime) override;
 
 private:
-
+	
 	UPROPERTY()
-	FSceneSoftwareOcclusion* SceneSoftwareOcclusion;
+	APlayerCameraManager* PlayerCameraManager;
 };

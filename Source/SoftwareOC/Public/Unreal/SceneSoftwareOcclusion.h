@@ -5,7 +5,6 @@
 #include "CoreMinimal.h"
 #include "OcclusionMeshData.h"
 #include "Async/TaskGraphInterfaces.h"
-#include "ScreenPass.h"
 
 class FRHICommandListImmediate;
 class FScene;

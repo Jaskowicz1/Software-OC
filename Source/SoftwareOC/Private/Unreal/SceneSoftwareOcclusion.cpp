@@ -948,7 +948,7 @@ static float ComputePotentialOccluderWeight(float ScreenSize, float DistanceSqua
 	return ScreenSize + OCCLUDER_DISTANCE_WEIGHT/DistanceSquared;
 }
 
-static FGraphEventRef SubmitScene(const FScene* Scene, FViewInfo& View, FOcclusionFrameResults* Results)
+static FGraphEventRef SubmitScene(const FScene* Scene, const FViewInfo& View, FOcclusionFrameResults* Results)
 {
 	int32 NumCollectedOccluders = 0;
 	int32 NumCollectedOccludees = 0;
@@ -1069,6 +1069,8 @@ int32 FSceneSoftwareOcclusion::Process(const FScene* Scene, FViewInfo& View)
 {
 	// Make sure occlusion task issued last frame is completed
 	FlushResults();
+
+	Available.Reset(nullptr);
 
 	// Finished processing occlusion, set results as available
 	Available = MoveTemp(Processing);
