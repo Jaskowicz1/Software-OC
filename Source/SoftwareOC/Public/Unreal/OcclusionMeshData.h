@@ -13,7 +13,7 @@ public:
 
 	FOcclusionMeshData(const UStaticMesh* Mesh)
 	{
-		if(!Mesh)
+		if(!IsValid(Mesh))
 		{
 			return;
 		}
@@ -30,22 +30,30 @@ public:
 		
 		if (NumVtx > 0 && NumIndices > 0 && !IndexBuffer.Is32Bit())
 		{
-			Vertices.SetNumUninitialized(NumVtx);
+			VerticesSP.SetNumUninitialized(NumVtx);
 
-			const FVector3f* V0 = &LODModel.VertexBuffers.PositionVertexBuffer.VertexPosition(0);
+			// Do this instead of memcpy because memcpy is stupid apparently and just dies.
+			for (int i = 0; i < NumVtx; ++i)
+			{
+				VerticesSP.GetData()[i] = FVector(LODModel.VertexBuffers.PositionVertexBuffer.VertexPosition(i));
+			}
 
-			Indices.SetNumUninitialized(NumIndices);
-			const uint16* Indices = IndexBuffer.AccessStream16();
-
-			FMemory::Memcpy(Vertices.GetData(), V0, NumVtx*sizeof(FVector));
-			FMemory::Memcpy(Indices.GetData(), Indices, NumIndices*sizeof(uint16));
+			IndicesSP.SetNumUninitialized(NumIndices);
+			for (int i = 0; i < NumIndices; ++i)
+			{
+				IndicesSP.GetData()[i] = IndexBuffer.AccessStream16()[i];
+			}
 		}
 	}
 
+	UPROPERTY(Transient)
 	FMatrix					LocalToWorld{};
-	TArray<FVector>			Vertices;
-	TArray<uint16>			Indices;
-	FPrimitiveComponentId	PrimId;
+	UPROPERTY(Transient)
+	TArray<FVector>			VerticesSP{};
+	UPROPERTY(Transient)
+	TArray<uint16>			IndicesSP{};
+	
+	FPrimitiveComponentId	PrimId; // Has a zero constructor.
 };
 
 struct FPotentialOccluderPrimitive

@@ -185,7 +185,7 @@ inline void RasterizeHalf(float X0, float X1, float DX0, float DX1, int32 Row0, 
 	}
 }
 
-static void RasterizeOccluderTri(const FScreenTriangle& Tri, uint64* BinData, int32 BinMinX)
+inline void RasterizeOccluderTri(const FScreenTriangle& Tri, uint64* BinData, int32 BinMinX)
 {
 	FScreenPosition A = Tri.V[0];
 	FScreenPosition B = Tri.V[1];
@@ -242,7 +242,7 @@ static void RasterizeOccluderTri(const FScreenTriangle& Tri, uint64* BinData, in
 	}
 }
 
-static bool RasterizeOccludeeQuad(const FScreenTriangle& Tri, uint64* BinData, int32 BinMinX)
+inline bool RasterizeOccludeeQuad(const FScreenTriangle& Tri, uint64* BinData, int32 BinMinX)
 {
 	int32 RowMin = Tri.V[0].Y; // Quad MinY
 	int32 RowMax = Tri.V[2].Y; // Quad MaxY
@@ -270,7 +270,7 @@ static bool RasterizeOccludeeQuad(const FScreenTriangle& Tri, uint64* BinData, i
 	return false;
 }
 
-static bool TestFrontface(const FScreenTriangle& Tri)
+inline bool TestFrontface(const FScreenTriangle& Tri)
 {
 	if ((Tri.V[2].X - Tri.V[0].X) * (Tri.V[1].Y - Tri.V[0].Y) >= (Tri.V[2].Y - Tri.V[0].Y) * (Tri.V[1].X - Tri.V[0].X))
 	{
@@ -294,15 +294,15 @@ inline bool AddTriangle(FScreenTriangle& Tri, float TriDepth, FPrimitiveComponen
 		}
 	}
 
-	int32 TriangleID = InData.ScreenTriangles.Add(Tri);
+	const int32 TriangleID = InData.ScreenTriangles.Add(Tri);
 	InData.ScreenTrianglesPrimID.Add(PrimitiveId);
 	InData.ScreenTrianglesFlags.Add(MeshFlags);
 	
 	// bin
-	int32 MinX = FMath::Min3(Tri.V[0].X, Tri.V[1].X, Tri.V[2].X) / BIN_WIDTH; 
-	int32 MaxX = FMath::Max3(Tri.V[0].X, Tri.V[1].X, Tri.V[2].X) / BIN_WIDTH;
-	int32 BinMin = FMath::Max(MinX, 0);
-	int32 BinMax = FMath::Min(MaxX, BIN_NUM-1);
+	const int32 MinX = FMath::Min3(Tri.V[0].X, Tri.V[1].X, Tri.V[2].X) / BIN_WIDTH; 
+	const int32 MaxX = FMath::Max3(Tri.V[0].X, Tri.V[1].X, Tri.V[2].X) / BIN_WIDTH;
+	const int32 BinMin = FMath::Max(MinX, 0);
+	const int32 BinMax = FMath::Min(MaxX, BIN_NUM-1);
 	
 	FSortedIndexDepth SortedIndexDepth;
 	SortedIndexDepth.Index = TriangleID;
@@ -493,14 +493,14 @@ static bool ProcessOccludeeGeom(const FOcclusionSceneData& SceneData, FOcclusion
 	
 	// on stack mem for each run output
 	MS_ALIGN(SIMD_ALIGNMENT) int32 Quads[RUN_SIZE*4] GCC_ALIGN(SIMD_ALIGNMENT);
-	float QuadDepths[RUN_SIZE];
-	int32 QuadClipFlags[RUN_SIZE];
 
 	int32 NumRuns = NumBoxes/RUN_SIZE + 1;
 	int32 NumBoxesProcessed = 0;
 	
 	for (int32 RunIdx = 0; RunIdx < NumRuns; ++RunIdx)
 	{
+		float QuadDepths[RUN_SIZE];
+		int32 QuadClipFlags[RUN_SIZE];
 		int32 RunSize = FMath::Min(NumBoxes - NumBoxesProcessed, RUN_SIZE);
 		
 		// Generate quads
@@ -619,18 +619,17 @@ static void ProcessOccluderGeom(const FOcclusionSceneData& SceneData, FOcclusion
 	const float W_CLIP = SceneData.ViewProj.M[3][2];
 
 	const int32 NumMeshes = SceneData.OccluderData.Num();
-	const FOcclusionMeshData* MeshData = SceneData.OccluderData.GetData();
 
 	TArray<FVector4>	ClipVertexBuffer;
 	TArray<uint8>		ClipVertexFlagsBuffer;
 		
 	for (int32 MeshIdx = 0; MeshIdx < NumMeshes; ++MeshIdx)
 	{
-		const FOcclusionMeshData& Mesh = MeshData[MeshIdx];
+		const FOcclusionMeshData& Mesh = SceneData.OccluderData[MeshIdx];
 		int32 NumVtx = Mesh.VerticesSP.Num();
 		
-		ClipVertexBuffer.SetNumUninitialized(NumVtx, false);
-		ClipVertexFlagsBuffer.SetNumUninitialized(NumVtx, false);
+		ClipVertexBuffer.SetNumUninitialized(NumVtx, EAllowShrinking::No);
+		ClipVertexFlagsBuffer.SetNumUninitialized(NumVtx, EAllowShrinking::No);
 
 		const FVector* MeshVertices = Mesh.VerticesSP.GetData();
 		FVector4* MeshClipVertices = ClipVertexBuffer.GetData();
@@ -669,7 +668,6 @@ static void ProcessOccluderGeom(const FOcclusionSceneData& SceneData, FOcclusion
 	
 		const uint16* MeshIndices = Mesh.IndicesSP.GetData();
 		int32 NumTris = Mesh.IndicesSP.Num()/3;
-		int32 NumDataTris = OutData.ScreenTriangles.Num();
 
 		// Create triangles
 		for (int32 i = 0; i < NumTris; ++i)
@@ -688,11 +686,11 @@ static void ProcessOccluderGeom(const FOcclusionSceneData& SceneData, FOcclusion
 				continue;
 			}
 
-			FVector4 V[3] = 
+			const uint16 V[3] = 
 			{
-				MeshClipVertices[I0],
-				MeshClipVertices[I1],
-				MeshClipVertices[I2]
+				I0,
+				I1,
+				I2
 			};
 
 			uint8 TriFlags = F0 | F1 | F2;
@@ -708,19 +706,24 @@ static void ProcessOccluderGeom(const FOcclusionSceneData& SceneData, FOcclusion
 					int32 i0 = Edges[EdgeIdx][0];
 					int32 i1 = Edges[EdgeIdx][1];
 
-					bool dot0 = V[i0].W < W_CLIP;
-					bool dot1 = V[i1].W < W_CLIP;
+					if(!ClipVertexBuffer.IsValidIndex(V[i0]) || !ClipVertexBuffer.IsValidIndex(V[i1]))
+					{
+						continue;
+					}
+
+					bool dot0 = MeshClipVertices[V[i0]].W < W_CLIP;
+					bool dot1 = MeshClipVertices[V[i1]].W < W_CLIP;
 								
 					if (!dot0)
 					{
-						ClippedPos[NumPos] = V[i0];
+						ClippedPos[NumPos] = MeshClipVertices[V[i0]];
 						NumPos++;
 					}
 				
 					if (dot0 != dot1)
 					{
-						float t = (W_CLIP - V[i0].W) / (V[i0].W - V[i1].W);
-						ClippedPos[NumPos] = V[i0] + t*(V[i0] - V[i1]);
+						float t = (W_CLIP - MeshClipVertices[V[i0]].W) / (MeshClipVertices[V[i0]].W - MeshClipVertices[V[i1]].W);
+						ClippedPos[NumPos] = MeshClipVertices[V[i0]] + t*(MeshClipVertices[V[i0]] - MeshClipVertices[V[i1]]);
 						NumPos++;
 					}
 				}
@@ -752,7 +755,13 @@ static void ProcessOccluderGeom(const FOcclusionSceneData& SceneData, FOcclusion
 						
 				for (int32 j = 0; j < 3 && !bShouldDiscard; ++j)
 				{
-					bShouldDiscard|= ClippedVertexToScreen(V[j], Tri.V[j], Depths[j]);
+					if (ClipVertexBuffer.IsValidIndex(V[j]))
+					{
+						bShouldDiscard|= ClippedVertexToScreen(MeshClipVertices[V[j]], Tri.V[j], Depths[j]);
+					} else
+					{
+						bShouldDiscard |= true;
+					}
 				}
 			
 				if (!bShouldDiscard && TestFrontface(Tri))
@@ -855,7 +864,7 @@ static void ProcessOcclusionFrame(const FOcclusionSceneData& InSceneData, FOcclu
 				{
 					// rasterize occludee
 					bool& VisBit = OutResults.VisibilityMap.FindOrAdd(PrimitiveId);
-					bool bVisible = RasterizeOccludeeQuad(Tri, Bin.Data, BinMinX);
+					const bool bVisible = RasterizeOccludeeQuad(Tri, Bin.Data, BinMinX);
 					VisBit|= bVisible;
 					NumRasterizedOccludeeTris++;
 				}
@@ -1004,8 +1013,7 @@ static FGraphEventRef SubmitScene(const FScene* Scene, const FViewInfo& View, FO
 			
 			if (bCanBeOccluder)
 			{
-				PotentialOccluders.AddUninitialized();
-				FPotentialOccluderPrimitive& PotentialOccluder = PotentialOccluders.Last();
+				FPotentialOccluderPrimitive PotentialOccluder{};
 
 				PotentialOccluder.PrimitiveSceneInfo = PrimitiveSceneInfo;
 				// Only issue is, this may be laggy if many objects. Need to find a better way to do this.
@@ -1024,12 +1032,13 @@ static FGraphEventRef SubmitScene(const FScene* Scene, const FViewInfo& View, FO
 					
 					if (Component->GetStaticMesh()->GetName() == Proxy->GetResourceName())
 					{
-						FOcclusionMeshData MeshData = FOcclusionMeshData(Component->GetStaticMesh());
-						PotentialOccluder.OccluderData = MeshData;
+						PotentialOccluder.OccluderData = FOcclusionMeshData(Component->GetStaticMesh());
 						break;
 					}
 				}
 				PotentialOccluder.Weight = ComputePotentialOccluderWeight(ScreenSize, DistanceSquared);
+
+				PotentialOccluders.Add(PotentialOccluder);
 			}
 			
 			bool bCanBeOccludee = !bHasHugeBounds && (OcclusionFlags & EOcclusionFlags::CanBeOccluded) != 0;			

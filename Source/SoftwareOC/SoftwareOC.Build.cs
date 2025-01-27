@@ -26,7 +26,8 @@ public class SoftwareOC : ModuleRules
 			new string[]
 			{
 				"Core",
-				"Engine"
+				"Engine",
+				"Renderer"
 				// ... add other public dependencies that you statically link with here ...
 			}
 			);
@@ -40,6 +41,7 @@ public class SoftwareOC : ModuleRules
 				"Slate",
 				"SlateCore",
 				"DeveloperSettings",
+				"Renderer",
 				// ... add private dependencies that you statically link with here ...	
 			}
 			);
@@ -51,5 +53,13 @@ public class SoftwareOC : ModuleRules
 				// ... add any modules that your module loads dynamically here ...
 			}
 			);
+		
+		if (Target.bBuildEditor)
+		{
+			PrivateDependencyModuleNames.AddRange(new string[]
+			{
+				"UnrealEd",
+			});
+		}
 	}
 }
