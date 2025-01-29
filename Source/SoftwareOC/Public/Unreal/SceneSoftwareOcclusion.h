@@ -29,9 +29,10 @@ public:
 	void FlushResults();
 	void DebugDraw(FCanvas* Canvas, int32 InX, int32 InY) const;
 	static int32 CollectOccluderElements(FOccluderElementsCollector& Collector, FPrimitiveSceneProxy* Proxy, const FPotentialOccluderPrimitive& PotentialOccluder);
+
+	TUniquePtr<FOcclusionFrameResults> Available;
 	
 private:
 	FGraphEventRef TaskRef;
-	TUniquePtr<FOcclusionFrameResults> Available;
 	TUniquePtr<FOcclusionFrameResults> Processing;
 };

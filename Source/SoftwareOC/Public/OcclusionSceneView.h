@@ -2,7 +2,7 @@
 
 #include "SceneViewExtension.h"
 
-class SOFTWAREOC_API FOcclusionSceneViewExtension : public FSceneViewExtensionBase
+class FOcclusionSceneViewExtension : public FSceneViewExtensionBase
 {
 public:
 	FOcclusionSceneViewExtension(const FAutoRegister& AutoRegister);
@@ -17,4 +17,6 @@ public:
 	virtual void PostRenderBasePassDeferred_RenderThread(FRDGBuilder& GraphBuilder, FSceneView& InView, const FRenderTargetBindingSlots& RenderTargets, TRDGUniformBufferRef<FSceneTextureUniformParameters> SceneTextures) override;
 	virtual void PostRenderView_RenderThread(FRDGBuilder& GraphBuilder, FSceneView& InView) override {};
 	virtual void SubscribeToPostProcessingPass(EPostProcessingPass PassId, const FSceneView& View, FAfterPassCallbackDelegateArray& InOutPassCallbacks, bool bIsPassEnabled) override {};
+
+	TArray<bool>* SubIsOccluded = nullptr;
 };

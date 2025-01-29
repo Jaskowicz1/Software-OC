@@ -6,6 +6,7 @@
 #include "Runtime/Renderer/Private/ScenePrivate.h"
 #include "Runtime/Renderer/Private/SceneRendering.h"
 #include "PrimitiveSceneInfo.h"
+#include "Unreal/FOcclusionFrameResults.h"
 #include "Unreal/SceneSoftwareOcclusion.h"
 
 static FSceneSoftwareOcclusion* SceneSoftwareOcclusion;
@@ -50,25 +51,29 @@ void FOcclusionSceneViewExtension::PostRenderBasePassDeferred_RenderThread(FRDGB
 	{
 		return;
 	}
-	
-	FSceneViewState* ViewState = (FSceneViewState*)View->State;
+		
+	SceneSoftwareOcclusion->Process(Scene, *View);
 
-	if (!ViewState || ViewState->bIsFrozen)
+	FOcclusionFrameResults* FrameResults = SceneSoftwareOcclusion->Available.Get();
+
+	if (!FrameResults)
 	{
 		return;
 	}
-		
-	SceneSoftwareOcclusion->Process(Scene, *View);
 	
-	TArray<FPrimitiveSceneInfo*> AddedSceneInfos;
-	for (TConstDualSetBitIterator<SceneRenderingBitArrayAllocator, FDefaultBitArrayAllocator> BitIt(View->PrimitiveVisibilityMap, Scene->PrimitivesNeedingStaticMeshUpdate); BitIt; ++BitIt)
+	for (TObjectIterator<UStaticMeshComponent> StaticMeshIterator; StaticMeshIterator; ++StaticMeshIterator)
 	{
-		int32 PrimitiveIndex = BitIt.GetIndex();
-		AddedSceneInfos.Add(Scene->Primitives[PrimitiveIndex]);
-	}
+		UStaticMeshComponent* Component = *StaticMeshIterator;
+		if(!IsValid(Component))
+		{
+			continue;
+		}
 
-	if (AddedSceneInfos.Num() > 0)
-	{
-		FPrimitiveSceneInfo::UpdateStaticMeshes(Scene, AddedSceneInfos, EUpdateStaticMeshFlags::AllCommands);
+		if(Component->HasAnyFlags(RF_ClassDefaultObject))
+		{
+			continue;
+		}
+
+		Component->SetHiddenInGame(!FrameResults->IsVisible(Component->GetPrimitiveSceneId()));
 	}
 }

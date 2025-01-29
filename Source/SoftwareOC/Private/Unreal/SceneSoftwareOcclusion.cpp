@@ -14,6 +14,7 @@
 #include "Math/Vector.h"
 #include "Runtime/Renderer/Private/ScenePrivate.h"
 #include "Runtime/Renderer/Private/SceneRendering.h"
+#include "Unreal/FOcclusionFrameResults.h"
 
 DECLARE_STATS_GROUP(TEXT("Software Occlusion"), STATGROUP_SoftwareOcclusion, STATCAT_Advanced);
 DECLARE_CYCLE_STAT(TEXT("(RT) Gather Time"),STAT_SoftwareOcclusionGather,STATGROUP_SoftwareOcclusion);
@@ -72,11 +73,6 @@ static FAutoConsoleVariableRef CVarSOVisualizeBuffer(
 
 
 
-static const int32 BIN_WIDTH = 64;
-static const int32 BIN_NUM = 6;
-static const int32 FRAMEBUFFER_WIDTH = BIN_WIDTH*BIN_NUM;
-static const int32 FRAMEBUFFER_HEIGHT = 256;
-
 namespace EScreenVertexFlags
 {
 	const uint8 None = 0;
@@ -88,11 +84,6 @@ namespace EScreenVertexFlags
 	const uint8 Discard			= 1 << 5;	// Polygon using this vertex should be discarded
 }
 
-struct FFramebufferBin
-{
-	uint64 Data[FRAMEBUFFER_HEIGHT];
-};
-
 struct FScreenPosition
 {
 	int32 X, Y;
@@ -103,16 +94,19 @@ struct FScreenTriangle
 	FScreenPosition V[3];
 };
 
-struct FOcclusionFrameResults
-{
-	FFramebufferBin	Bins[BIN_NUM];
-	TMap<FPrimitiveComponentId, bool> VisibilityMap;
-};
-
 struct FSortedIndexDepth
 {
 	int32 Index;
 	float Depth;
+};
+
+struct FOcclusionSceneData
+{
+	FMatrix											ViewProj;
+	TArray<FVector>									OccludeeBoxMinMax;
+	TArray<FPrimitiveComponentId>					OccludeeBoxPrimId;
+	TArray<FOcclusionMeshData>						OccluderData;
+	int32											NumOccluderTriangles;
 };
 
 struct FOcclusionFrameData
@@ -137,15 +131,6 @@ struct FOcclusionFrameData
 		ScreenTrianglesPrimID.Reserve(NumTriangles);
 		ScreenTrianglesFlags.Reserve(NumTriangles);
 	}
-};
-
-struct FOcclusionSceneData
-{
-	FMatrix											ViewProj;
-	TArray<FVector>									OccludeeBoxMinMax;
-	TArray<FPrimitiveComponentId>					OccludeeBoxPrimId;
-	TArray<FOcclusionMeshData>						OccluderData;
-	int32											NumOccluderTriangles;
 };
 
 inline uint64 ComputeBinRowMask(int32 BinMinX, float fX0, float fX1)
