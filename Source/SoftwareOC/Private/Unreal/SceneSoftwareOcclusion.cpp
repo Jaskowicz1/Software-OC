@@ -870,8 +870,13 @@ FSceneSoftwareOcclusion::FSceneSoftwareOcclusion()
 
 FSceneSoftwareOcclusion::~FSceneSoftwareOcclusion()
 {
-	// make sure async task is done
-	FlushResults();
+	if(Available)
+	{
+		// make sure async task is done
+		FlushResults();
+
+		Available.Reset();
+	}
 }
 
 static int32 ApplyResults(const FScene* Scene, FViewInfo& View, const FOcclusionFrameResults& Results)

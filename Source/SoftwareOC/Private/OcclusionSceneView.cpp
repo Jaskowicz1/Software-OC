@@ -19,7 +19,10 @@ FOcclusionSceneViewExtension::FOcclusionSceneViewExtension(const FAutoRegister& 
 
 FOcclusionSceneViewExtension::~FOcclusionSceneViewExtension()
 {
-	delete SceneSoftwareOcclusion;
+	if(SceneSoftwareOcclusion)
+	{
+		delete SceneSoftwareOcclusion;
+	}
 }
 
 void FOcclusionSceneViewExtension::PostRenderBasePassDeferred_RenderThread(FRDGBuilder& GraphBuilder,
