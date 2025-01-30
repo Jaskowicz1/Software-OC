@@ -6,6 +6,7 @@
 #include "OcclusionMeshData.h"
 #include "Async/TaskGraphInterfaces.h"
 
+class USoftwareOCSubsystem;
 class FRHICommandListImmediate;
 class FScene;
 class FViewInfo;
@@ -25,12 +26,15 @@ public:
 	FSceneSoftwareOcclusion();
 	~FSceneSoftwareOcclusion();
 
+	FGraphEventRef SubmitScene(const FScene* Scene, const FViewInfo& View, FOcclusionFrameResults* Results);
 	int32 Process(const FScene* Scene, FViewInfo& View);
 	void FlushResults();
 	void DebugDraw(FCanvas* Canvas, int32 InX, int32 InY) const;
 	static int32 CollectOccluderElements(FOccluderElementsCollector& Collector, FPrimitiveSceneProxy* Proxy, const FPotentialOccluderPrimitive& PotentialOccluder);
 
 	TUniquePtr<FOcclusionFrameResults> Available;
+	
+	USoftwareOCSubsystem* OcSubsystem;
 	
 private:
 	FGraphEventRef TaskRef;

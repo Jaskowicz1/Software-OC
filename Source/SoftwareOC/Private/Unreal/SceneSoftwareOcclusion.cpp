@@ -7,6 +7,7 @@
 #include "Unreal/SceneSoftwareOcclusion.h"
 #include "EngineGlobals.h"
 #include "CanvasTypes.h"
+#include "SoftwareOCSubsystem.h"
 #include "StaticMeshSceneProxy.h"
 #include "Async/TaskGraphInterfaces.h"
 #include "Engine/Canvas.h"
@@ -942,7 +943,8 @@ static float ComputePotentialOccluderWeight(float ScreenSize, float DistanceSqua
 	return ScreenSize + OCCLUDER_DISTANCE_WEIGHT/DistanceSquared;
 }
 
-static FGraphEventRef SubmitScene(const FScene* Scene, const FViewInfo& View, FOcclusionFrameResults* Results)
+FGraphEventRef FSceneSoftwareOcclusion::SubmitScene(const FScene* Scene, const FViewInfo& View,
+	FOcclusionFrameResults* Results)
 {
 	int32 NumCollectedOccluders = 0;
 	int32 NumCollectedOccludees = 0;
@@ -1001,26 +1003,16 @@ static FGraphEventRef SubmitScene(const FScene* Scene, const FViewInfo& View, FO
 				FPotentialOccluderPrimitive PotentialOccluder{};
 
 				PotentialOccluder.PrimitiveSceneInfo = PrimitiveSceneInfo;
-				// Only issue is, this may be laggy if many objects. Need to find a better way to do this.
-				for(TObjectIterator<UStaticMeshComponent> StaticMeshItr; StaticMeshItr; ++StaticMeshItr)
-				{
-					UStaticMeshComponent* Component = *StaticMeshItr;
-					if (!IsValid(Component) || !Component->GetStaticMesh())
-					{
-						continue;
-					}
 
-					if(Component->GetWorld() != Scene->GetWorld())
+				if (OcSubsystem)
+				{
+					if (OcSubsystem->IDToMeshComp.Contains(PrimitiveComponentId.PrimIDValue))
 					{
-						continue;
-					}
-					
-					if (Component->GetStaticMesh()->GetName() == Proxy->GetResourceName())
-					{
-						PotentialOccluder.OccluderData = FOcclusionMeshData(Component->GetStaticMesh());
-						break;
+						auto StaticMeshComponent = *OcSubsystem->IDToMeshComp.Find(PrimitiveComponentId.PrimIDValue);
+						PotentialOccluder.OccluderData = FOcclusionMeshData(StaticMeshComponent->GetStaticMesh());
 					}
 				}
+
 				PotentialOccluder.Weight = ComputePotentialOccluderWeight(ScreenSize, DistanceSquared);
 
 				PotentialOccluders.Add(PotentialOccluder);

@@ -23,6 +23,11 @@ public:
 	
 	virtual void Tick(float DeltaTime) override;
 
+	UPROPERTY()
+	TMap<uint32, UStaticMeshComponent*> IDToMeshComp;
+
+	void ForceUpdateMap();
+
 private:
 	
 	UPROPERTY()

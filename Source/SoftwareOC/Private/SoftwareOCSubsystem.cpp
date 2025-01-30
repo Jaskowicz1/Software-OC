@@ -19,6 +19,7 @@ void USoftwareOCSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	}
 
 	OcclusionSceneViewExtension = FSceneViewExtensions::NewExtension<FOcclusionSceneViewExtension>();
+	OcclusionSceneViewExtension->OcSubsystem = this;
 }
 
 void USoftwareOCSubsystem::Deinitialize()
@@ -42,4 +43,19 @@ TStatId USoftwareOCSubsystem::GetStatId() const
 
 void USoftwareOCSubsystem::Tick(float DeltaTime)
 {
+	ForceUpdateMap();
+}
+
+void USoftwareOCSubsystem::ForceUpdateMap()
+{
+	for(TObjectIterator<UStaticMeshComponent> StaticMeshItr; StaticMeshItr; ++StaticMeshItr)
+	{
+		UStaticMeshComponent* Component = *StaticMeshItr;
+		if (!IsValid(Component) || !Component->GetStaticMesh())
+		{
+			continue;
+		}
+		
+		IDToMeshComp.Add(Component->GetPrimitiveSceneId().PrimIDValue, Component);
+	}
 }

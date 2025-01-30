@@ -17,14 +17,24 @@ FOcclusionSceneViewExtension::FOcclusionSceneViewExtension(const FAutoRegister& 
 	SceneSoftwareOcclusion = new FSceneSoftwareOcclusion{};
 }
 
+FOcclusionSceneViewExtension::~FOcclusionSceneViewExtension()
+{
+	delete SceneSoftwareOcclusion;
+}
+
 void FOcclusionSceneViewExtension::PostRenderBasePassDeferred_RenderThread(FRDGBuilder& GraphBuilder,
-	FSceneView& InView, const FRenderTargetBindingSlots& RenderTargets,
-	TRDGUniformBufferRef<FSceneTextureUniformParameters> SceneTextures)
+                                                                           FSceneView& InView, const FRenderTargetBindingSlots& RenderTargets,
+                                                                           TRDGUniformBufferRef<FSceneTextureUniformParameters> SceneTextures)
 {
 	FSceneViewExtensionBase::
 		PostRenderBasePassDeferred_RenderThread(GraphBuilder, InView, RenderTargets, SceneTextures);
 
 	FSceneViewExtensionBase::PostRenderView_RenderThread(GraphBuilder, InView);
+
+	if(OcSubsystem)
+	{
+		SceneSoftwareOcclusion->OcSubsystem = OcSubsystem;
+	}
 	
 	const USoftwareOCSettings* OcclusionSettings = GetDefault<USoftwareOCSettings>();
 

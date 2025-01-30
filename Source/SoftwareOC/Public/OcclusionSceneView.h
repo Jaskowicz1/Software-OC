@@ -2,10 +2,13 @@
 
 #include "SceneViewExtension.h"
 
+class USoftwareOCSubsystem;
+
 class FOcclusionSceneViewExtension : public FSceneViewExtensionBase
 {
 public:
 	FOcclusionSceneViewExtension(const FAutoRegister& AutoRegister);
+	~FOcclusionSceneViewExtension();
 
 	/** Scene View extension interface. */
 public:
@@ -19,4 +22,5 @@ public:
 	virtual void SubscribeToPostProcessingPass(EPostProcessingPass PassId, const FSceneView& View, FAfterPassCallbackDelegateArray& InOutPassCallbacks, bool bIsPassEnabled) override {};
 
 	TArray<bool>* SubIsOccluded = nullptr;
+	USoftwareOCSubsystem* OcSubsystem;
 };
