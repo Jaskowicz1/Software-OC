@@ -9,6 +9,9 @@
 #include "Runtime/Renderer/Private/SceneRendering.h"
 #include "Unreal/SceneSoftwareOcclusion.h"
 
+DECLARE_STATS_GROUP(TEXT("Software Occlusion"), STATGROUP_SoftwareOcclusion, STATCAT_Advanced);
+DECLARE_CYCLE_STAT(TEXT("Update IDToMeshComp (GameThread)"), STAT_UpdateIDToMeshComp, STATGROUP_SoftwareOcclusion);
+
 void USoftwareOCSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
@@ -48,6 +51,8 @@ void USoftwareOCSubsystem::Tick(float DeltaTime)
 
 void USoftwareOCSubsystem::ForceUpdateMap()
 {
+	SCOPE_CYCLE_COUNTER(STAT_UpdateIDToMeshComp);
+	
 	for(TObjectIterator<UStaticMeshComponent> StaticMeshItr; StaticMeshItr; ++StaticMeshItr)
 	{
 		UStaticMeshComponent* Component = *StaticMeshItr;
