@@ -9,6 +9,17 @@
 
 static FSceneSoftwareOcclusion* SceneSoftwareOcclusion;
 
+DECLARE_STATS_GROUP(TEXT("Software Occlusion"), STATGROUP_SoftwareOcclusion, STATCAT_Advanced);
+DECLARE_DWORD_COUNTER_STAT(TEXT("SceneView Culled"),STAT_SoftwareCulledSceneView,STATGROUP_SoftwareOcclusion);
+
+static int32 GSOVisualizeOccluded = 0;
+static FAutoConsoleVariableRef CVarSOVisualizeOccluded(
+	TEXT("r.so.VisualizeOccluded"),
+	GSOVisualizeOccluded,
+	TEXT("Visualize Occluded and Non-Occluded Objects."),
+	ECVF_RenderThreadSafe
+	);
+
 FOcclusionSceneViewExtension::FOcclusionSceneViewExtension(const FAutoRegister& AutoRegister)
 	: FSceneViewExtensionBase(AutoRegister)
 {
@@ -54,14 +65,6 @@ void FOcclusionSceneViewExtension::PostRenderBasePassDeferred_RenderThread(FRDGB
 	{
 		return;
 	}
-	
-	FSceneViewState* ViewState = (FSceneViewState*)View->State;
-	// This function shouldn't call if we are frozen, but it looks like Unreal is still doing stuff in the back when this isn't here?
-	// No breakpoints get called though...
-	if (!ViewState || ViewState->bIsFrozen || ViewState->bIsFreezing)
-	{
-		return;
-	}
 		
 	SceneSoftwareOcclusion->Process(Scene, *View);
 
@@ -71,6 +74,8 @@ void FOcclusionSceneViewExtension::PostRenderBasePassDeferred_RenderThread(FRDGB
 	{
 		return;
 	}
+
+	int NumOccluded = 0;
 	
 	for (TObjectIterator<UStaticMeshComponent> StaticMeshIterator; StaticMeshIterator; ++StaticMeshIterator)
 	{
@@ -87,33 +92,33 @@ void FOcclusionSceneViewExtension::PostRenderBasePassDeferred_RenderThread(FRDGB
 			continue;
 		}
 
-		bool ObjectVisiblity = !FrameResults->IsVisible(Component->GetPrimitiveSceneId());;
+		const bool ObjectHidden = !FrameResults->IsVisible(Component->GetPrimitiveSceneId());
 
-		AsyncTask(ENamedThreads::GameThread, [Component, ObjectVisiblity]()
+		AsyncTask(ENamedThreads::GameThread, [Component, ObjectHidden]()
 		{
 			if(IsValid(Component) && Component->GetWorld())
 			{
-				Component->SetHiddenInGame(ObjectVisiblity);
+				Component->SetHiddenInGame(ObjectHidden);
 			}
 		});
-	}
-}
 
-void FOcclusionSceneViewExtension::PostRenderView_RenderThread(FRDGBuilder& GraphBuilder, FSceneView& InView)
-{
-	FSceneViewExtensionBase::PostRenderView_RenderThread(GraphBuilder, InView);
-	
-	if (!InView.bIsViewInfo)
-	{
-		return;
-	}
+		if(GSOVisualizeOccluded)
+		{
+			FColor OccludedColour = ObjectHidden ? FColor::Green : FColor::Red;
 
-	FViewInfo* View = (FViewInfo*)(&InView);
-	
-	if (!View || !InView.ViewActor || !InView.ViewActor->GetWorld() || !InView.ViewActor->GetWorld()->Scene)
-	{
-		return;
+			if(Component->GetWorld())
+			{
+				DrawDebugBox(Component->GetWorld(), Component->Bounds.Origin, Component->Bounds.BoxExtent, FQuat::Identity, OccludedColour, false, -1, 10, 1);	
+			}
+		}
+		
+		if(ObjectHidden)
+		{
+			NumOccluded++;
+		}
 	}
+	
+	INC_DWORD_STAT_BY(STAT_SoftwareCulledSceneView, NumOccluded);
 
 	FRDGTextureRef ViewFamilyTexture = TryCreateViewFamilyTexture(GraphBuilder, *InView.Family);
 	

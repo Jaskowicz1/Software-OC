@@ -134,6 +134,8 @@ struct FOcclusionFrameData
 	}
 };
 
+UE_DISABLE_OPTIMIZATION
+
 inline uint64 ComputeBinRowMask(int32 BinMinX, float fX0, float fX1)
 {
 	int32 X0 = FMath::RoundToInt(fX0) - BinMinX;
@@ -228,7 +230,7 @@ inline void RasterizeOccluderTri(const FScreenTriangle& Tri, uint64* BinData, in
 	}
 }
 
-inline bool RasterizeOccludeeQuad(const FScreenTriangle& Tri, uint64* BinData, int32 BinMinX)
+bool RasterizeOccludeeQuad(const FScreenTriangle& Tri, uint64* BinData, int32 BinMinX)
 {
 	int32 RowMin = Tri.V[0].Y; // Quad MinY
 	int32 RowMax = Tri.V[2].Y; // Quad MaxY
@@ -312,6 +314,8 @@ static const uint32 sBBxInd[NUM_CUBE_VTX] = { 1, 0, 0, 1, 1, 1, 0, 0 };
 static const uint32 sBByInd[NUM_CUBE_VTX] = { 1, 1, 1, 1, 0, 0, 0, 0 };
 static const uint32 sBBzInd[NUM_CUBE_VTX] = { 1, 1, 0, 0, 0, 1, 1, 0 };
 // END Intel
+
+UE_ENABLE_OPTIMIZATION
 
 static void ProcessOccludeeGeomSIMD(const FMatrix& InMat, const FVector* InMinMax, int32 Num, int32* RESTRICT OutQuads, float* RESTRICT OutQuadDepth, int32* RESTRICT OutQuadClipped)
 {
@@ -849,7 +853,7 @@ static void ProcessOcclusionFrame(const FOcclusionSceneData& InSceneData, FOcclu
 					// rasterize occludee
 					bool& VisBit = OutResults.VisibilityMap.FindOrAdd(PrimitiveId);
 					const bool bVisible = RasterizeOccludeeQuad(Tri, Bin.Data, BinMinX);
-					VisBit|= bVisible;
+					VisBit |= bVisible;
 					NumRasterizedOccludeeTris++;
 				}
 			}
@@ -885,7 +889,7 @@ FSceneSoftwareOcclusion::~FSceneSoftwareOcclusion()
 static int32 ApplyResults(const FScene* Scene, FViewInfo& View, const FOcclusionFrameResults& Results)
 {
 	int32 NumOccluded = 0;
-
+	
 	for (FSceneSetBitIterator BitIt(View.PrimitiveVisibilityMap); BitIt; ++BitIt)
 	{
 		uint32 PrimitiveIndex = BitIt.GetIndex();
