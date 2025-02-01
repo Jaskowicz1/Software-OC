@@ -58,6 +58,8 @@ void FOcclusionSceneViewExtension::PostRenderBasePassDeferred_RenderThread(FRDGB
 	}
 	
 	FSceneViewState* ViewState = (FSceneViewState*)View->State;
+	// This function shouldn't call if we are frozen, but it looks like Unreal is still doing stuff in the back when this isn't here?
+	// No breakpoints get called though...
 	if (!ViewState || ViewState->bIsFrozen || ViewState->bIsFreezing)
 	{
 		return;
@@ -75,7 +77,9 @@ void FOcclusionSceneViewExtension::PostRenderBasePassDeferred_RenderThread(FRDGB
 	for (TObjectIterator<UStaticMeshComponent> StaticMeshIterator; StaticMeshIterator; ++StaticMeshIterator)
 	{
 		UStaticMeshComponent* Component = *StaticMeshIterator;
-		if(!IsValid(Component))
+		if (!IsValid(Component) || !Component->IsRegistered() || !Component->GetWorld() ||
+			Component->GetWorld()->WorldType == EWorldType::Editor || Component->GetWorld()->WorldType == EWorldType::Inactive ||
+			Component->GetWorld()->WorldType == EWorldType::Inactive)
 		{
 			continue;
 		}

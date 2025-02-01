@@ -17,6 +17,7 @@ public:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
 
+	// Needed to prevent "abstract class" errors.
 	virtual TStatId GetStatId() const override;
 	
 	virtual void Tick(float DeltaTime) override;

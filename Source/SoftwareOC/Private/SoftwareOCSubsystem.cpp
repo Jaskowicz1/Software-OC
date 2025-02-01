@@ -26,7 +26,6 @@ void USoftwareOCSubsystem::Deinitialize()
 {
 	Super::Deinitialize();
 
-	IDToMeshComp.Reset();
 	IDToMeshComp = {};
 
 	if(OcclusionSceneViewExtension)
@@ -35,6 +34,7 @@ void USoftwareOCSubsystem::Deinitialize()
 	}
 }
 
+// Needed to prevent "abstract class" errors.
 TStatId USoftwareOCSubsystem::GetStatId() const
 {
 	return UObject::GetStatID();
@@ -47,11 +47,17 @@ void USoftwareOCSubsystem::Tick(float DeltaTime)
 
 void USoftwareOCSubsystem::ForceUpdateMap()
 {
-	
 	for(TObjectIterator<UStaticMeshComponent> StaticMeshItr; StaticMeshItr; ++StaticMeshItr)
 	{
 		UStaticMeshComponent* Component = *StaticMeshItr;
-		if (!IsValid(Component) || !Component->GetStaticMesh() || !Component->GetWorld())
+		if (!IsValid(Component) || !Component->IsRegistered() || !Component->GetWorld() ||
+			Component->GetWorld()->WorldType == EWorldType::Editor || Component->GetWorld()->WorldType == EWorldType::Inactive ||
+			Component->GetWorld()->WorldType == EWorldType::Inactive)
+		{
+			continue;
+		}
+
+		if (Component->HasAnyFlags(RF_ClassDefaultObject))
 		{
 			continue;
 		}
