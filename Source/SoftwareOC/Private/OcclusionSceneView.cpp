@@ -2,10 +2,8 @@
 
 #include "OcclusionSceneView.h"
 
-#include "SoftwareOCSettings.h"
 #include "Runtime/Renderer/Private/ScenePrivate.h"
 #include "Runtime/Renderer/Private/SceneRendering.h"
-#include "PrimitiveSceneInfo.h"
 #include "Unreal/FOcclusionFrameResults.h"
 #include "Unreal/SceneSoftwareOcclusion.h"
 
@@ -21,6 +19,7 @@ FOcclusionSceneViewExtension::~FOcclusionSceneViewExtension()
 {
 	if(SceneSoftwareOcclusion)
 	{
+		SceneSoftwareOcclusion->OcSubsystem = nullptr;
 		delete SceneSoftwareOcclusion;
 	}
 }
@@ -38,13 +37,6 @@ void FOcclusionSceneViewExtension::PostRenderBasePassDeferred_RenderThread(FRDGB
 	{
 		SceneSoftwareOcclusion->OcSubsystem = OcSubsystem;
 	}
-	
-	const USoftwareOCSettings* OcclusionSettings = GetDefault<USoftwareOCSettings>();
-
-	if (!OcclusionSettings->bEnableOcclusion)
-	{
-		return;
-	}
 
 	if (!InView.bIsViewInfo)
 	{
@@ -61,6 +53,12 @@ void FOcclusionSceneViewExtension::PostRenderBasePassDeferred_RenderThread(FRDGB
 	FScene* Scene = InView.ViewActor->GetWorld()->Scene->GetRenderScene();
 	
 	if (!Scene)
+	{
+		return;
+	}
+	
+	FSceneViewState* ViewState = (FSceneViewState*)View->State;
+	if (!ViewState || ViewState->bIsFrozen || ViewState->bIsFreezing)
 	{
 		return;
 	}
@@ -87,6 +85,14 @@ void FOcclusionSceneViewExtension::PostRenderBasePassDeferred_RenderThread(FRDGB
 			continue;
 		}
 
-		Component->SetHiddenInGame(!FrameResults->IsVisible(Component->GetPrimitiveSceneId()));
+		bool ObjectVisiblity = !FrameResults->IsVisible(Component->GetPrimitiveSceneId());;
+
+		AsyncTask(ENamedThreads::GameThread, [Component, ObjectVisiblity]()
+		{
+			if(IsValid(Component) && Component->GetWorld())
+			{
+				Component->SetHiddenInGame(ObjectVisiblity);
+			}
+		});
 	}
 }

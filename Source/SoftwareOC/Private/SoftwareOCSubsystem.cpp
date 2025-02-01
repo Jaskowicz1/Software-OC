@@ -5,38 +5,34 @@
 
 #include "SceneViewExtension.h"
 #include "SoftwareOCSettings.h"
-#include "Runtime/Renderer/Private/ScenePrivate.h"
-#include "Runtime/Renderer/Private/SceneRendering.h"
-#include "Unreal/SceneSoftwareOcclusion.h"
-
-DECLARE_STATS_GROUP(TEXT("Software Occlusion"), STATGROUP_SoftwareOcclusion, STATCAT_Advanced);
-DECLARE_CYCLE_STAT(TEXT("Update IDToMeshComp (GameThread)"), STAT_UpdateIDToMeshComp, STATGROUP_SoftwareOcclusion);
 
 void USoftwareOCSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
 
-	if(GetWorld() && GetLocalPlayer() && GetLocalPlayer()->GetPlayerController(GetWorld()))
-	{
-		PlayerCameraManager = GetLocalPlayer()->GetPlayerController(GetWorld())->PlayerCameraManager;
-	}
+	const USoftwareOCSettings* OcclusionSettings = GetDefault<USoftwareOCSettings>();
 
-	OcclusionSceneViewExtension = FSceneViewExtensions::NewExtension<FOcclusionSceneViewExtension>();
-	OcclusionSceneViewExtension->OcSubsystem = this;
+	if (OcclusionSettings->bEnableOcclusion)
+	{
+		OcclusionSceneViewExtension = FSceneViewExtensions::NewExtension<FOcclusionSceneViewExtension>();
+		OcclusionSceneViewExtension->OcSubsystem = this;
+	} else
+	{
+		SetTickableTickType(ETickableTickType::Never); // Do not allow ticking if we aren't occluding.
+	}
 }
 
 void USoftwareOCSubsystem::Deinitialize()
 {
 	Super::Deinitialize();
 
-	PlayerCameraManager = nullptr;
-}
+	IDToMeshComp.Reset();
+	IDToMeshComp = {};
 
-void USoftwareOCSubsystem::PlayerControllerChanged(APlayerController* NewPlayerController)
-{
-	Super::PlayerControllerChanged(NewPlayerController);
-
-	PlayerCameraManager = NewPlayerController->PlayerCameraManager;
+	if(OcclusionSceneViewExtension)
+	{
+		OcclusionSceneViewExtension.Reset();
+	}
 }
 
 TStatId USoftwareOCSubsystem::GetStatId() const
@@ -51,12 +47,11 @@ void USoftwareOCSubsystem::Tick(float DeltaTime)
 
 void USoftwareOCSubsystem::ForceUpdateMap()
 {
-	SCOPE_CYCLE_COUNTER(STAT_UpdateIDToMeshComp);
 	
 	for(TObjectIterator<UStaticMeshComponent> StaticMeshItr; StaticMeshItr; ++StaticMeshItr)
 	{
 		UStaticMeshComponent* Component = *StaticMeshItr;
-		if (!IsValid(Component) || !Component->GetStaticMesh())
+		if (!IsValid(Component) || !Component->GetStaticMesh() || !Component->GetWorld())
 		{
 			continue;
 		}

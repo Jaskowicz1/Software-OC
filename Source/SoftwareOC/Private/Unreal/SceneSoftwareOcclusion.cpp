@@ -870,7 +870,12 @@ FSceneSoftwareOcclusion::FSceneSoftwareOcclusion()
 
 FSceneSoftwareOcclusion::~FSceneSoftwareOcclusion()
 {
-	if(Available)
+	if (Processing)
+	{
+		Processing.Reset();
+	}
+	
+	if (Available)
 	{
 		// make sure async task is done
 		FlushResults();
