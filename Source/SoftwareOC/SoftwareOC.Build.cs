@@ -27,7 +27,8 @@ public class SoftwareOC : ModuleRules
 			{
 				"Core",
 				"Engine",
-				"Renderer"
+				"Renderer",
+				"RenderCore",
 				// ... add other public dependencies that you statically link with here ...
 			}
 			);
@@ -42,6 +43,7 @@ public class SoftwareOC : ModuleRules
 				"SlateCore",
 				"DeveloperSettings",
 				"Renderer",
+				"RenderCore",
 				// ... add private dependencies that you statically link with here ...	
 			}
 			);

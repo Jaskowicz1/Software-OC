@@ -100,3 +100,26 @@ void FOcclusionSceneViewExtension::PostRenderBasePassDeferred_RenderThread(FRDGB
 		});
 	}
 }
+
+void FOcclusionSceneViewExtension::PostRenderView_RenderThread(FRDGBuilder& GraphBuilder, FSceneView& InView)
+{
+	FSceneViewExtensionBase::PostRenderView_RenderThread(GraphBuilder, InView);
+	
+	if (!InView.bIsViewInfo)
+	{
+		return;
+	}
+
+	FViewInfo* View = (FViewInfo*)(&InView);
+	
+	if (!View || !InView.ViewActor || !InView.ViewActor->GetWorld() || !InView.ViewActor->GetWorld()->Scene)
+	{
+		return;
+	}
+
+	FRDGTextureRef ViewFamilyTexture = TryCreateViewFamilyTexture(GraphBuilder, *InView.Family);
+	
+	const FScreenPassRenderTarget Output(ViewFamilyTexture, View->UnconstrainedViewRect, ERenderTargetLoadAction::ELoad);
+	
+	SceneSoftwareOcclusion->DebugDraw(GraphBuilder, *View, Output, 20, 20);
+}
