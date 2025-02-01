@@ -614,10 +614,10 @@ static void ProcessOccluderGeom(const FOcclusionSceneData& SceneData, FOcclusion
 		const FOcclusionMeshData& Mesh = SceneData.OccluderData[MeshIdx];
 		int32 NumVtx = Mesh.VerticesSP.Num();
 		
-		ClipVertexBuffer.SetNumUninitialized(NumVtx, EAllowShrinking::No);
-		ClipVertexFlagsBuffer.SetNumUninitialized(NumVtx, EAllowShrinking::No);
+		ClipVertexBuffer.SetNumUninitialized(NumVtx, EAllowShrinking::Yes);
+		ClipVertexFlagsBuffer.SetNumUninitialized(NumVtx, EAllowShrinking::Yes);
 
-		const FVector* MeshVertices = Mesh.VerticesSP.GetData();
+		const FVector3f* MeshVertices = Mesh.VerticesSP.GetData();
 		FVector4* MeshClipVertices = ClipVertexBuffer.GetData();
 		uint8*	MeshClipVertexFlags = ClipVertexFlagsBuffer.GetData();
 		
@@ -679,11 +679,9 @@ static void ProcessOccluderGeom(const FOcclusionSceneData& SceneData, FOcclusion
 				I2
 			};
 
-			uint8 TriFlags = F0 | F1 | F2;
-
-			if (TriFlags & EScreenVertexFlags::ClippedNear)
+			if (uint8 TriFlags = F0 | F1 | F2; TriFlags & EScreenVertexFlags::ClippedNear)
 			{
-				static const int32 Edges[3][2] = {{0,1}, {1,2}, {2,0}};
+				static constexpr int32 Edges[3][2] = {{0,1}, {1,2}, {2,0}};
 				FVector4 ClippedPos[4];
 				int32 NumPos = 0;
 			
@@ -709,7 +707,7 @@ static void ProcessOccluderGeom(const FOcclusionSceneData& SceneData, FOcclusion
 					if (dot0 != dot1)
 					{
 						float t = (W_CLIP - MeshClipVertices[V[i0]].W) / (MeshClipVertices[V[i0]].W - MeshClipVertices[V[i1]].W);
-						ClippedPos[NumPos] = MeshClipVertices[V[i0]] + t*(MeshClipVertices[V[i0]] - MeshClipVertices[V[i1]]);
+						ClippedPos[NumPos] = MeshClipVertices[V[i0]] + t * (MeshClipVertices[V[i0]] - MeshClipVertices[V[i1]]);
 						NumPos++;
 					}
 				}
@@ -775,7 +773,7 @@ public:
 		CurrentPrimitiveId = PrimitiveId;
 	}
 
-	virtual void AddElements(const TArray<FVector>& Vertices, const TArray<uint16>& Indices, const FMatrix& LocalToWorld) override 
+	virtual void AddElements(const TArray<FVector3f>& Vertices, const TArray<uint16>& Indices, const FMatrix& LocalToWorld) override 
 	{
 		SceneData.OccluderData.AddDefaulted();
 		FOcclusionMeshData& MeshData = SceneData.OccluderData.Last();
@@ -989,7 +987,7 @@ FGraphEventRef FSceneSoftwareOcclusion::SubmitScene(const FScene* Scene, const F
 			const uint8 OcclusionFlags = Scene->PrimitiveOcclusionFlags[PrimitiveIndex];
 			const FPrimitiveComponentId PrimitiveComponentId = PrimitiveSceneInfo->PrimitiveComponentId;
 			FPrimitiveSceneProxy* Proxy = PrimitiveSceneInfo->Proxy;
-			
+
 			const bool bHasHugeBounds = Bounds.SphereRadius > HALF_WORLD_MAX/2.0f; // big objects like skybox
 			float DistanceSquared = 0.f;
 			float ScreenSize = 0.f;

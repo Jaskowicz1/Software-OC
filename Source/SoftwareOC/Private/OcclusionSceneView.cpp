@@ -31,8 +31,6 @@ void FOcclusionSceneViewExtension::PostRenderBasePassDeferred_RenderThread(FRDGB
 	FSceneViewExtensionBase::
 		PostRenderBasePassDeferred_RenderThread(GraphBuilder, InView, RenderTargets, SceneTextures);
 
-	FSceneViewExtensionBase::PostRenderView_RenderThread(GraphBuilder, InView);
-
 	if(OcSubsystem)
 	{
 		SceneSoftwareOcclusion->OcSubsystem = OcSubsystem;

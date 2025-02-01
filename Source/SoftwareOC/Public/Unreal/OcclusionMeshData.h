@@ -32,24 +32,20 @@ public:
 		{
 			VerticesSP.SetNumUninitialized(NumVtx);
 
-			// Do this instead of memcpy because memcpy is stupid apparently and just dies.
-			for (int i = 0; i < NumVtx; ++i)
-			{
-				VerticesSP.GetData()[i] = FVector(LODModel.VertexBuffers.PositionVertexBuffer.VertexPosition(i));
-			}
-
 			IndicesSP.SetNumUninitialized(NumIndices);
-			for (int i = 0; i < NumIndices; ++i)
-			{
-				IndicesSP.GetData()[i] = IndexBuffer.AccessStream16()[i];
-			}
+			
+			const FVector3f* V0 = &LODModel.VertexBuffers.PositionVertexBuffer.VertexPosition(0);
+			const uint16* Indices = IndexBuffer.AccessStream16();
+
+			FMemory::Memcpy(VerticesSP.GetData(), V0, NumVtx * sizeof(FVector3f));
+			FMemory::Memcpy(IndicesSP.GetData(), Indices, NumIndices * sizeof(uint16));
 		}
 	}
 
 	UPROPERTY(Transient)
 	FMatrix					LocalToWorld{};
 	UPROPERTY(Transient)
-	TArray<FVector>			VerticesSP{};
+	TArray<FVector3f>		VerticesSP{};
 	UPROPERTY(Transient)
 	TArray<uint16>			IndicesSP{};
 	
