@@ -3,6 +3,7 @@
 #include "OcclusionSceneView.h"
 
 #include "SoftwareOCSubsystem.h"
+#include "Camera/CameraComponent.h"
 #include "Runtime/Renderer/Private/ScenePrivate.h"
 #include "Runtime/Renderer/Private/SceneRendering.h"
 #include "Unreal/FOcclusionFrameResults.h"
@@ -107,6 +108,20 @@ void FOcclusionSceneViewExtension::PostRenderBasePassDeferred_RenderThread(FRDGB
 			continue;
 		}
 
+		// Ignore this type of object just to speed up the looping (this is more for multiplayer games where you can get
+		// several cameras. Allowing us to loop through fast.
+		if(Component->IsA<UCameraProxyMeshComponent>())
+		{
+			continue;
+		}
+
+		// Now make sure that these components aren't marked to be ignored.
+		// If they are, don't bother with them (saves us time).
+		if(Component->bTreatAsBackgroundForOcclusion == 1 || (Component->SceneProxy && !Component->SceneProxy->CanBeOccluded()))
+		{
+			continue;
+		}
+
 		FPrimitiveComponentId ComponentId = Component->GetPrimitiveSceneId();
 
 		if(Component->HasAnyFlags(RF_ClassDefaultObject))
@@ -148,7 +163,10 @@ void FOcclusionSceneViewExtension::PostRenderBasePassDeferred_RenderThread(FRDGB
 
 			if(Component->GetWorld())
 			{
-				DrawDebugBox(Component->GetWorld(), Component->Bounds.Origin, Component->Bounds.BoxExtent, FQuat::Identity, OccludedColour, false, -1, 10, 1);	
+				if(GEngine)
+				{
+					DrawDebugBox(Component->GetWorld(), Component->Bounds.Origin, Component->Bounds.BoxExtent, FQuat::Identity, OccludedColour, false, -1, 10, 1);
+				}
 			}
 		}
 		

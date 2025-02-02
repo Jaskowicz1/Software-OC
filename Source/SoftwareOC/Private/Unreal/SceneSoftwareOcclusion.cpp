@@ -988,9 +988,16 @@ FGraphEventRef FSceneSoftwareOcclusion::SubmitScene(const FScene* Scene, const F
 			uint32 PrimitiveIndex = BitIt.GetIndex();
 			const FPrimitiveSceneInfo* PrimitiveSceneInfo = Scene->Primitives[PrimitiveIndex];
 			const FBoxSphereBounds& Bounds = Scene->PrimitiveOcclusionBounds[PrimitiveIndex];
+			const uint8 OcclusionFlags = Scene->PrimitiveOcclusionFlags[PrimitiveIndex];
 			const FPrimitiveComponentId PrimitiveComponentId = PrimitiveSceneInfo->PrimitiveComponentId;
 			FPrimitiveSceneProxy* Proxy = PrimitiveSceneInfo->Proxy;
 
+			// Ignore random components that shouldn't be occluded.
+			if(Proxy->GetMeshDrawCommandStatsCategory() == "LineBatchComponent")
+			{
+				continue;
+			}
+			
 			const bool bHasHugeBounds = Bounds.SphereRadius > HALF_WORLD_MAX/2.0f; // big objects like skybox
             float DistanceSquared = 0.f;
             float ScreenSize = 0.f;
@@ -1026,7 +1033,7 @@ FGraphEventRef FSceneSoftwareOcclusion::SubmitScene(const FScene* Scene, const F
             	PotentialOccluders.Add(PotentialOccluder);
             }
         
-            bool bCanBeOccludee = !bHasHugeBounds && Proxy->CanBeOccluded();	
+            bool bCanBeOccludee = !bHasHugeBounds && Proxy->CanBeOccluded() && (OcclusionFlags & EOcclusionFlags::CanBeOccluded) != 0;;	
             if (bCanBeOccludee)
             {
             	// Collect occludee bbox
