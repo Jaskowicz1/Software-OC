@@ -901,7 +901,7 @@ static int32 ApplyResults(const FScene* Scene, FViewInfo& View, const FOcclusion
 				View.PrimitiveVisibilityMap[PrimitiveIndex] = false;
 				NumOccluded++;
 			}
-#if defined(ENGINE_MINOR_VERSION) AND ENGINE_MINOR_VERSION >= 5
+#if defined(ENGINE_MINOR_VERSION) && ENGINE_MINOR_VERSION >= 5
 			else
 			{
 				View.PrimitiveDefinitelyUnoccludedMap[PrimitiveIndex] = true;
