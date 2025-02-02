@@ -161,11 +161,13 @@ void FOcclusionSceneViewExtension::PostRenderBasePassDeferred_RenderThread(FRDGB
 				}
 			}
 
-			if(Component->GetWorld())
+			// DrawDebugBox throws an error if we try draw immediately. We should until the world has been alive
+			// for a bit to actually draw debug stuff.
+			if(Component->GetWorld() && Component->GetWorld()->GetRealTimeSeconds() >= 1)
 			{
 				if(GEngine)
 				{
-					DrawDebugBox(Component->GetWorld(), Component->Bounds.Origin, Component->Bounds.BoxExtent, FQuat::Identity, OccludedColour, false, -1, 10, 1);
+					DrawDebugBox(Component->GetWorld(), Component->Bounds.Origin, Component->Bounds.BoxExtent, FQuat::Identity, OccludedColour, false, -1, 10, 2);
 				}
 			}
 		}

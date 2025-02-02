@@ -5,6 +5,7 @@
 
 #include "SceneViewExtension.h"
 #include "SoftwareOCSettings.h"
+#include "Components/InstancedStaticMeshComponent.h"
 
 void USoftwareOCSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {

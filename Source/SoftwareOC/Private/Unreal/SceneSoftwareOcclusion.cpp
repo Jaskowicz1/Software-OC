@@ -7,6 +7,7 @@
 #include "Unreal/SceneSoftwareOcclusion.h"
 #include "EngineGlobals.h"
 #include "CanvasTypes.h"
+#include "HierarchicalStaticMeshSceneProxy.h"
 #include "SoftwareOCSubsystem.h"
 #include "StaticMeshSceneProxy.h"
 #include "Async/TaskGraphInterfaces.h"
@@ -1040,7 +1041,6 @@ FGraphEventRef FSceneSoftwareOcclusion::SubmitScene(const FScene* Scene, const F
             	CollectOccludeeGeom(Bounds, PrimitiveComponentId, *SceneData);
             	NumCollectedOccludees++;
             }
-			
 		}
 
 		if (OcSubsystem && !OcSubsystem->CachedVisibilityMap.IsEmpty())
@@ -1233,38 +1233,7 @@ int32 FSceneSoftwareOcclusion::CollectOccluderElements(FOccluderElementsCollecto
 	// InstancedStaticMeshes are missing their transforms per instance (WHY?!?!?!)
 	// It's as if Unreal decided "no we won't keep cool optimisations in anymore!!"
 	
-	/*
-	// InstancedStaticMeshSceneProxies are children of FStaticMeshSceneProxy. Check this first.
-	if (FInstancedStaticMeshSceneProxy* InstancedStaticMeshProxy = Cast<FInstancedStaticMeshSceneProxy>(Proxy))
-	{
-		if (!PotentialOccluder.OccluderData.IndicesSP->IsEmpty())
-		{	
-			const int32 NumInstances = InstancedStaticMeshProxy->GetInstanceDataHeader().NumInstances;
-		
-			const TArray<FMatrix>& PerInstanceTransforms = InstancedStaticMeshProxy->
-			for (const FMatrix& InstanceToLocal: PerInstanceTransforms)
-			{
-				Collector.AddElements(PotentialOccluder.OccluderData.VerticesSP, PotentialOccluder.OccluderData.IndicesSP, InstanceToLocal * Proxy->GetLocalToWorld());
-			}
-		
-			return NumInstances;
-		}
-	
-		return 0;
-	}
-	else */
-
-	/*
-	if (FStaticMeshSceneProxy* StaticMeshProxy = static_cast<FStaticMeshSceneProxy*>(Proxy))
-	{
-		if (!PotentialOccluder.OccluderData.IndicesSP->IsEmpty())
-		{	
-			Collector.AddElements(PotentialOccluder.OccluderData.VerticesSP, PotentialOccluder.OccluderData.IndicesSP, StaticMeshProxy->GetLocalToWorld());
-			return 1;
-		}
-		return 0;
-	}
-	*/
+	// TODO: Make ISMs and HISMs not have a huge occlusion box, it could potentially cause issues in some projects
 	
 	if (!PotentialOccluder.OccluderData.VerticesSP.IsEmpty() && !PotentialOccluder.OccluderData.IndicesSP.IsEmpty())
 	{
