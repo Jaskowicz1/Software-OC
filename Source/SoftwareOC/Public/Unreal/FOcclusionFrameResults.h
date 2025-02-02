@@ -15,7 +15,7 @@ struct FOcclusionFrameResults
 	FFramebufferBin	Bins[BIN_NUM];
 	TMap<FPrimitiveComponentId, bool> VisibilityMap;
 
-	inline bool IsVisible(FPrimitiveComponentId ID)
+	bool IsVisible(FPrimitiveComponentId ID)
 	{
 		if(!VisibilityMap.Contains(ID))
 		{
@@ -25,3 +25,4 @@ struct FOcclusionFrameResults
 		return *VisibilityMap.Find(ID);
 	}
 };
+

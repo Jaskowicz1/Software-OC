@@ -2,6 +2,7 @@
 
 #include "OcclusionSceneView.h"
 
+#include "SoftwareOCSubsystem.h"
 #include "Runtime/Renderer/Private/ScenePrivate.h"
 #include "Runtime/Renderer/Private/SceneRendering.h"
 #include "Unreal/FOcclusionFrameResults.h"
@@ -28,6 +29,8 @@ FOcclusionSceneViewExtension::FOcclusionSceneViewExtension(const FAutoRegister& 
 
 FOcclusionSceneViewExtension::~FOcclusionSceneViewExtension()
 {
+	OcSubsystem->CachedVisibilityMap.Empty();
+	
 	if(SceneSoftwareOcclusion)
 	{
 		SceneSoftwareOcclusion->OcSubsystem = nullptr;
@@ -52,9 +55,14 @@ void FOcclusionSceneViewExtension::PostRenderBasePassDeferred_RenderThread(FRDGB
 		return;
 	}
 
-	FViewInfo* View = (FViewInfo*)(&InView);
-	
+	FViewInfo* View = static_cast<FViewInfo*>(&InView);
 	if (!View || !InView.ViewActor || !InView.ViewActor->GetWorld() || !InView.ViewActor->GetWorld()->Scene)
+	{
+		return;
+	}
+
+	const FSceneViewState* ViewState = static_cast<FSceneViewState*>(View->State);
+	if (!ViewState || ViewState->bIsFrozen || ViewState->bIsFreezing)
 	{
 		return;
 	}
@@ -75,6 +83,18 @@ void FOcclusionSceneViewExtension::PostRenderBasePassDeferred_RenderThread(FRDGB
 		return;
 	}
 
+	for (auto& Tuple : FrameResults->VisibilityMap)
+	{
+		if (Tuple.Value)
+		{
+			OcSubsystem->CachedVisibilityMap.Remove(Tuple.Key); // Removing values ensures that the Gather step doesn't spend too long checked already cached values.
+		}
+		else
+		{
+			OcSubsystem->CachedVisibilityMap.Add(Tuple.Key, Tuple.Value);
+		}
+	}
+
 	int NumOccluded = 0;
 	
 	for (TObjectIterator<UStaticMeshComponent> StaticMeshIterator; StaticMeshIterator; ++StaticMeshIterator)
@@ -87,12 +107,20 @@ void FOcclusionSceneViewExtension::PostRenderBasePassDeferred_RenderThread(FRDGB
 			continue;
 		}
 
+		FPrimitiveComponentId ComponentId = Component->GetPrimitiveSceneId();
+
 		if(Component->HasAnyFlags(RF_ClassDefaultObject))
 		{
 			continue;
 		}
 
-		const bool ObjectHidden = !FrameResults->IsVisible(Component->GetPrimitiveSceneId());
+		bool ObjectHidden = !FrameResults->IsVisible(ComponentId);
+		
+		// Ensure that any values that aren't in for this frame, are checked against a cache.
+		if(OcSubsystem->CachedVisibilityMap.Contains(Component->GetPrimitiveSceneId()))
+		{
+			ObjectHidden = !(*OcSubsystem->CachedVisibilityMap.Find(ComponentId));
+		}
 
 		AsyncTask(ENamedThreads::GameThread, [Component, ObjectHidden]()
 		{
@@ -105,6 +133,18 @@ void FOcclusionSceneViewExtension::PostRenderBasePassDeferred_RenderThread(FRDGB
 		if(GSOVisualizeOccluded)
 		{
 			FColor OccludedColour = ObjectHidden ? FColor::Green : FColor::Red;
+
+			if(!FrameResults->VisibilityMap.Contains(ComponentId))
+			{
+				if(!OcSubsystem->CachedVisibilityMap.Contains(ComponentId))
+				{
+					OccludedColour = FColor::Yellow;
+				}
+				else
+				{
+					OccludedColour = ObjectHidden ? FColor::Magenta : FColor::Red;
+				}
+			}
 
 			if(Component->GetWorld())
 			{

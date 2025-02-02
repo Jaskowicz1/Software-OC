@@ -134,8 +134,6 @@ struct FOcclusionFrameData
 	}
 };
 
-UE_DISABLE_OPTIMIZATION
-
 inline uint64 ComputeBinRowMask(int32 BinMinX, float fX0, float fX1)
 {
 	int32 X0 = FMath::RoundToInt(fX0) - BinMinX;
@@ -314,8 +312,6 @@ static const uint32 sBBxInd[NUM_CUBE_VTX] = { 1, 0, 0, 1, 1, 1, 0, 0 };
 static const uint32 sBByInd[NUM_CUBE_VTX] = { 1, 1, 1, 1, 0, 0, 0, 0 };
 static const uint32 sBBzInd[NUM_CUBE_VTX] = { 1, 1, 0, 0, 0, 1, 1, 0 };
 // END Intel
-
-UE_ENABLE_OPTIMIZATION
 
 static void ProcessOccludeeGeomSIMD(const FMatrix& InMat, const FVector* InMinMax, int32 Num, int32* RESTRICT OutQuads, float* RESTRICT OutQuadDepth, int32* RESTRICT OutQuadClipped)
 {
@@ -604,6 +600,8 @@ static uint8 ProcessXFormVertex(const FVector4& XFV, float W_CLIP)
 	return Flags;
 }
 
+static constexpr int32 Edges[3][2] = {{0,1}, {1,2}, {2,0}};
+
 static void ProcessOccluderGeom(const FOcclusionSceneData& SceneData, FOcclusionFrameData& OutData)
 {
 	const float W_CLIP = SceneData.ViewProj.M[3][2];
@@ -685,7 +683,6 @@ static void ProcessOccluderGeom(const FOcclusionSceneData& SceneData, FOcclusion
 
 			if (uint8 TriFlags = F0 | F1 | F2; TriFlags & EScreenVertexFlags::ClippedNear)
 			{
-				static constexpr int32 Edges[3][2] = {{0,1}, {1,2}, {2,0}};
 				FVector4 ClippedPos[4];
 				int32 NumPos = 0;
 			
@@ -814,6 +811,7 @@ static void ProcessOcclusionFrame(const FOcclusionSceneData& InSceneData, FOcclu
 
 	int32 NumRasterizedOccluderTris = 0;
 	int32 NumRasterizedOccludeeTris = 0;
+	
 	{
 		SCOPE_CYCLE_COUNTER(STAT_SoftwareOcclusionRasterize);
 
@@ -826,7 +824,7 @@ static void ProcessOcclusionFrame(const FOcclusionSceneData& InSceneData, FOcclu
 			// Sort triangles in the bin by depth
 			FrameData.SortedTriangles[BinIdx].Sort([](const FSortedIndexDepth& A, const FSortedIndexDepth& B) { 
 				// biggerZ (closer) first 
-				return A.Depth > B.Depth; 
+				return A.Depth > B.Depth;
 			});
 
 			const FSortedIndexDepth* SortedTriIndices = FrameData.SortedTriangles[BinIdx].GetData();
@@ -903,6 +901,7 @@ static int32 ApplyResults(const FScene* Scene, FViewInfo& View, const FOcclusion
 				View.PrimitiveVisibilityMap[PrimitiveIndex] = false;
 				NumOccluded++;
 			}
+#if defined(ENGINE_MINOR_VERSION) AND ENGINE_MINOR_VERSION >= 5
 			else
 			{
 				View.PrimitiveDefinitelyUnoccludedMap[PrimitiveIndex] = true;
@@ -912,6 +911,7 @@ static int32 ApplyResults(const FScene* Scene, FViewInfo& View, const FOcclusion
 		{
 			// This applies for those are not occludees, so just follow the frustum culling result.
 			View.PrimitiveDefinitelyUnoccludedMap[PrimitiveIndex] = View.PrimitiveVisibilityMap[PrimitiveIndex];
+#endif
 		}
 	}
 
@@ -988,54 +988,80 @@ FGraphEventRef FSceneSoftwareOcclusion::SubmitScene(const FScene* Scene, const F
 			uint32 PrimitiveIndex = BitIt.GetIndex();
 			const FPrimitiveSceneInfo* PrimitiveSceneInfo = Scene->Primitives[PrimitiveIndex];
 			const FBoxSphereBounds& Bounds = Scene->PrimitiveOcclusionBounds[PrimitiveIndex];
-			const uint8 OcclusionFlags = Scene->PrimitiveOcclusionFlags[PrimitiveIndex];
 			const FPrimitiveComponentId PrimitiveComponentId = PrimitiveSceneInfo->PrimitiveComponentId;
 			FPrimitiveSceneProxy* Proxy = PrimitiveSceneInfo->Proxy;
 
 			const bool bHasHugeBounds = Bounds.SphereRadius > HALF_WORLD_MAX/2.0f; // big objects like skybox
-			float DistanceSquared = 0.f;
-			float ScreenSize = 0.f;
+            float DistanceSquared = 0.f;
+            float ScreenSize = 0.f;
+        
+            // Find out whether primitive can/should be occluder or occludee
+            bool bCanBeOccluder = !bHasHugeBounds && Proxy->ShouldUseAsOccluder();
+            if (bCanBeOccluder)
+            {
+            	// Size/distance requirements
+            	DistanceSquared = FMath::Max(OCCLUDER_DISTANCE_WEIGHT, (Bounds.Origin - ViewOrigin).SizeSquared() - FMath::Square(Bounds.SphereRadius));
+            	if (DistanceSquared < MaxDistanceSquared)
+            	{
+            		ScreenSize = ComputeBoundsScreenSize(Bounds.Origin, Bounds.SphereRadius, View);
+            	}
+
+            	bCanBeOccluder = GSOMinScreenRadiusForOccluder < ScreenSize;
+            }
+        
+            if (bCanBeOccluder)
+            {
+            	FPotentialOccluderPrimitive PotentialOccluder{};
+
+            	PotentialOccluder.PrimitiveSceneInfo = PrimitiveSceneInfo;
+
+            	if (OcSubsystem && OcSubsystem->IDToMeshComp.Contains(PrimitiveComponentId.PrimIDValue))
+            	{
+            		auto StaticMeshComponent = *OcSubsystem->IDToMeshComp.Find(PrimitiveComponentId.PrimIDValue);
+            		PotentialOccluder.OccluderData = FOcclusionMeshData(StaticMeshComponent->GetStaticMesh());
+            	}
+
+            	PotentialOccluder.Weight = ComputePotentialOccluderWeight(ScreenSize, DistanceSquared);
+
+            	PotentialOccluders.Add(PotentialOccluder);
+            }
+        
+            bool bCanBeOccludee = !bHasHugeBounds && Proxy->CanBeOccluded();	
+            if (bCanBeOccludee)
+            {
+            	// Collect occludee bbox
+            	CollectOccludeeGeom(Bounds, PrimitiveComponentId, *SceneData);
+            	NumCollectedOccludees++;
+            }
 			
-			// Find out whether primitive can/should be occluder or occludee
-			bool bCanBeOccluder = !bHasHugeBounds && Proxy->ShouldUseAsOccluder();
-			if (bCanBeOccluder)
+		}
+
+		if (OcSubsystem && !OcSubsystem->CachedVisibilityMap.IsEmpty())
+		{
+			for (auto& Tuple : OcSubsystem->CachedVisibilityMap)
 			{
-				// Size/distance requirements
-				DistanceSquared = FMath::Max(OCCLUDER_DISTANCE_WEIGHT, (Bounds.Origin - ViewOrigin).SizeSquared() - FMath::Square(Bounds.SphereRadius));
-				if (DistanceSquared < MaxDistanceSquared)
+				if (Tuple.Value)
 				{
-					ScreenSize = ComputeBoundsScreenSize(Bounds.Origin, Bounds.SphereRadius, View);
+					continue;
 				}
-
-				bCanBeOccluder = GSOMinScreenRadiusForOccluder < ScreenSize;
-			}
-			
-			if (bCanBeOccluder)
-			{
-				FPotentialOccluderPrimitive PotentialOccluder{};
-
-				PotentialOccluder.PrimitiveSceneInfo = PrimitiveSceneInfo;
-
-				if (OcSubsystem)
+				
+				FPrimitiveComponentId PrimitiveComponentId = Tuple.Key;
+				if (!OcSubsystem->IDToMeshComp.Contains(PrimitiveComponentId.PrimIDValue))
 				{
-					if (OcSubsystem->IDToMeshComp.Contains(PrimitiveComponentId.PrimIDValue))
-					{
-						auto StaticMeshComponent = *OcSubsystem->IDToMeshComp.Find(PrimitiveComponentId.PrimIDValue);
-						PotentialOccluder.OccluderData = FOcclusionMeshData(StaticMeshComponent->GetStaticMesh());
-					}
+					continue;
 				}
+				UStaticMeshComponent* StaticMeshComponent = *OcSubsystem->IDToMeshComp.Find(PrimitiveComponentId.PrimIDValue);
+				const FBoxSphereBounds& Bounds = StaticMeshComponent->Bounds;
 
-				PotentialOccluder.Weight = ComputePotentialOccluderWeight(ScreenSize, DistanceSquared);
-
-				PotentialOccluders.Add(PotentialOccluder);
-			}
-			
-			bool bCanBeOccludee = !bHasHugeBounds && (OcclusionFlags & EOcclusionFlags::CanBeOccluded) != 0;			
-			if (bCanBeOccludee)
-			{
-				// Collect occludee bbox
-				CollectOccludeeGeom(Bounds, PrimitiveComponentId, *SceneData);
-				NumCollectedOccludees++;
+				const bool bHasHugeBounds = Bounds.SphereRadius > HALF_WORLD_MAX/2.0f; // big objects like skybox
+		        
+				bool bCanBeOccludee = !bHasHugeBounds;
+				if (bCanBeOccludee)
+				{
+					// Collect occludee bbox
+					CollectOccludeeGeom(Bounds, PrimitiveComponentId, *SceneData);
+					NumCollectedOccludees++;
+				}
 			}
 		}
 
@@ -1089,7 +1115,10 @@ int32 FSceneSoftwareOcclusion::Process(const FScene* Scene, FViewInfo& View)
 	// Make sure occlusion task issued last frame is completed
 	FlushResults();
 
-	Available.Reset(nullptr);
+	if(Available.IsValid())
+	{
+		Available.Reset(nullptr);
+	}
 
 	// Finished processing occlusion, set results as available
 	Available = MoveTemp(Processing);

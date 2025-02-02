@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "OcclusionMeshData.h"
+#include "PrimitiveSceneProxy.h"
 #include "ScreenPass.h"
 #include "Async/TaskGraphInterfaces.h"
 

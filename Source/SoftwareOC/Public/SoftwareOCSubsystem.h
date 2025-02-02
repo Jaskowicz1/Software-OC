@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "OcclusionSceneView.h"
 #include "Subsystems/LocalPlayerSubsystem.h"
+#include "Unreal/OcclusionMeshData.h"
 #include "SoftwareOCSubsystem.generated.h"
 
 UCLASS()
@@ -24,6 +25,8 @@ public:
 
 	UPROPERTY()
 	TMap<uint32, TObjectPtr<UStaticMeshComponent>> IDToMeshComp;
+
+	TMap<FPrimitiveComponentId, bool> CachedVisibilityMap;
 
 	void ForceUpdateMap();
 
