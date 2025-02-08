@@ -36,7 +36,7 @@ public:
 
 	TUniquePtr<FOcclusionFrameResults> Available;
 	
-	USoftwareOCSubsystem* OcSubsystem;
+	USoftwareOCSubsystem* OcSubsystem = nullptr;
 	
 private:
 	FGraphEventRef TaskRef;

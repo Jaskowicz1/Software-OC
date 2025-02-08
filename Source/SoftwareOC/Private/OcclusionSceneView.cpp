@@ -159,7 +159,17 @@ void FOcclusionSceneViewExtension::PostRenderBasePassDeferred_RenderThread(FRDGB
 			{
 				if(GEngine)
 				{
-					DrawDebugBox(Component->GetWorld(), Component->Bounds.Origin, Component->Bounds.BoxExtent, FQuat::Identity, OccludedColour, false, -1, 10, 2);
+					// If there are too many objects (or we desync too much), we'll end up throwing an asset when drawing a debug box.
+					// So, we offload to GameThread to let it handle drawing.
+
+					// TODO: Fix the jitter as moving to GameThread now makes it desynced.
+					AsyncTask(ENamedThreads::GameThread, [Component, OccludedColour]()
+					{
+						if(IsValid(Component) && Component->GetWorld())
+						{
+							DrawDebugBox(Component->GetWorld(), Component->Bounds.Origin, Component->Bounds.BoxExtent, FQuat::Identity, OccludedColour, false, -1, 10, 2);
+						}
+					});
 				}
 			}
 		}

@@ -23,5 +23,5 @@ public:
 	virtual void PostRenderView_RenderThread(FRDGBuilder& GraphBuilder, FSceneView& InView) override {};
 	
 	TArray<bool>* SubIsOccluded = nullptr;
-	USoftwareOCSubsystem* OcSubsystem;
+	USoftwareOCSubsystem* OcSubsystem = nullptr;
 };

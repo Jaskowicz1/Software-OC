@@ -7,12 +7,8 @@
 #include "Unreal/SceneSoftwareOcclusion.h"
 #include "EngineGlobals.h"
 #include "CanvasTypes.h"
-#include "HierarchicalStaticMeshSceneProxy.h"
 #include "SoftwareOCSubsystem.h"
-#include "StaticMeshSceneProxy.h"
 #include "Async/TaskGraphInterfaces.h"
-#include "Engine/Canvas.h"
-#include "Engine/InstancedStaticMesh.h"
 #include "Math/Vector.h"
 #include "Runtime/Renderer/Private/ScenePrivate.h"
 #include "Runtime/Renderer/Private/SceneRendering.h"
@@ -1048,14 +1044,6 @@ FGraphEventRef FSceneSoftwareOcclusion::SubmitScene(const FScene* Scene, const F
             	CollectOccludeeGeom(Bounds, PrimitiveComponentId, *SceneData);
             	NumCollectedOccludees++;
             }
-#if defined(ENGINE_MINOR_VERSION) && ENGINE_MINOR_VERSION >= 5
-            else
-            {
-				// We know this isn't something we'll be occluding, so mark it as definitely Unoccluded.
-            	// UE5.5+ feature.
-            	View.PrimitiveDefinitelyUnoccludedMap[PrimitiveComponentId.PrimIDValue] = true;
-            }
-#endif
 		}
 
 		// We need to check the cached visibility map.

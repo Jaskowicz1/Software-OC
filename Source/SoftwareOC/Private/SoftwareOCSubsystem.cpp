@@ -36,17 +36,22 @@ void USoftwareOCSubsystem::Deinitialize()
 	}
 }
 
-// Needed to prevent "abstract class" errors.
 TStatId USoftwareOCSubsystem::GetStatId() const
 {
-	return UObject::GetStatID();
+	RETURN_QUICK_DECLARE_CYCLE_STAT(USoftwareOCSubsystem, STATGROUP_Tickables);
 }
 
 bool USoftwareOCSubsystem::IsTickable() const
 {
+	// We only want to do the settings check in UE5.4 and lower. UE5.5 will already abort tick in Initialise.
+	// This is a very minor optimisation, but makes no sense to ignore.
+#if defined(ENGINE_MINOR_VERSION) && ENGINE_MINOR_VERSION < 5
 	const USoftwareOCSettings* OcclusionSettings = GetDefault<USoftwareOCSettings>();
 
 	return OcclusionSettings->bEnableOcclusion;
+#else
+	return FTickableGameObject::IsTickable();
+#endif
 }
 
 void USoftwareOCSubsystem::Tick(float DeltaTime)
