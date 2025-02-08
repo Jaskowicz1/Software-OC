@@ -1,11 +1,10 @@
-// Copyright - Archie Jaskowicz
+// Copyright - Archie Jaskowicz.
 
 #pragma once
 
 #include "CoreMinimal.h"
 #include "OcclusionSceneView.h"
 #include "Subsystems/LocalPlayerSubsystem.h"
-#include "Unreal/OcclusionMeshData.h"
 #include "SoftwareOCSubsystem.generated.h"
 
 UCLASS()
@@ -20,6 +19,8 @@ public:
 
 	// Needed to prevent "abstract class" errors.
 	virtual TStatId GetStatId() const override;
+
+	virtual bool IsTickable() const override;
 	
 	virtual void Tick(float DeltaTime) override;
 

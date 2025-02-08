@@ -1,4 +1,4 @@
-// Copyright - Archie Jaskowicz
+// Copyright - Archie Jaskowicz.
 
 
 #include "SoftwareOCSettings.h"

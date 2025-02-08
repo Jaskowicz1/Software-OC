@@ -1,11 +1,9 @@
 // Copyright - Archie Jaskowicz
 
-
 #include "SoftwareOCSubsystem.h"
 
 #include "SceneViewExtension.h"
 #include "SoftwareOCSettings.h"
-#include "Components/InstancedStaticMeshComponent.h"
 
 void USoftwareOCSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -17,10 +15,13 @@ void USoftwareOCSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	{
 		OcclusionSceneViewExtension = FSceneViewExtensions::NewExtension<FOcclusionSceneViewExtension>();
 		OcclusionSceneViewExtension->OcSubsystem = this;
-	} else
+	}
+#if defined(ENGINE_MINOR_VERSION) && ENGINE_MINOR_VERSION >= 5
+	else // If UE version is 5.5, outright disable tick (this doesn't exist for ue5.4 and lower.
 	{
 		SetTickableTickType(ETickableTickType::Never); // Do not allow ticking if we aren't occluding.
 	}
+#endif
 }
 
 void USoftwareOCSubsystem::Deinitialize()
@@ -39,6 +40,13 @@ void USoftwareOCSubsystem::Deinitialize()
 TStatId USoftwareOCSubsystem::GetStatId() const
 {
 	return UObject::GetStatID();
+}
+
+bool USoftwareOCSubsystem::IsTickable() const
+{
+	const USoftwareOCSettings* OcclusionSettings = GetDefault<USoftwareOCSettings>();
+
+	return OcclusionSettings->bEnableOcclusion;
 }
 
 void USoftwareOCSubsystem::Tick(float DeltaTime)

@@ -1,9 +1,8 @@
-﻿
+﻿// Copyright - Archie Jaskowicz.
 
 #include "OcclusionSceneView.h"
 
 #include "SoftwareOCSubsystem.h"
-#include "Camera/CameraComponent.h"
 #include "Runtime/Renderer/Private/ScenePrivate.h"
 #include "Runtime/Renderer/Private/SceneRendering.h"
 #include "Unreal/FOcclusionFrameResults.h"
@@ -104,13 +103,6 @@ void FOcclusionSceneViewExtension::PostRenderBasePassDeferred_RenderThread(FRDGB
 		if (!IsValid(Component) || !Component->IsRegistered() || !Component->GetWorld() ||
 			Component->GetWorld()->WorldType == EWorldType::Editor || Component->GetWorld()->WorldType == EWorldType::Inactive ||
 			Component->GetWorld()->WorldType == EWorldType::Inactive)
-		{
-			continue;
-		}
-
-		// Ignore this type of object just to speed up the looping (this is more for multiplayer games where you can get
-		// several cameras. Allowing us to loop through fast.
-		if(Component->IsA<UCameraProxyMeshComponent>())
 		{
 			continue;
 		}

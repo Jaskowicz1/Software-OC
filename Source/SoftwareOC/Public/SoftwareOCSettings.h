@@ -1,4 +1,4 @@
-// Copyright - Archie Jaskowicz
+// Copyright - Archie Jaskowicz.
 
 #pragma once
 

@@ -921,6 +921,7 @@ static int32 ApplyResults(const FScene* Scene, FViewInfo& View, const FOcclusion
 	return NumOccluded;
 }
 
+/*
 static int32 GSOThreadName = 2;
 static FAutoConsoleVariableRef CVarSOThreadName(
 	TEXT("r.so.ThreadName"),
@@ -943,14 +944,20 @@ static const ENamedThreads::Type ThreadNameMap[] =
 	ENamedThreads::AnyBackgroundThreadNormalTask,
 	ENamedThreads::AnyBackgroundHiPriTask,
 };
+*/
 
 static ENamedThreads::Type GetOcclusionThreadName()
 {
-	int32 Index = FMath::Clamp<int32>(GSOThreadName, 0, UE_ARRAY_COUNT(ThreadNameMap)-1);
-	return ThreadNameMap[Index];
+	// Scrap below. There's a chance it can just run on GameThead and that's a no-go.
+	//int32 Index = FMath::Clamp<int32>(GSOThreadName, 0, UE_ARRAY_COUNT(ThreadNameMap)-1);
+	//return ThreadNameMap[Index];
+
+	// We want to ensure we return a high task priority thread.
+	// TODO: Make a dedicated thread for this.
+	return ENamedThreads::Type::HighTaskPriority;
 }
 
-const static float OCCLUDER_DISTANCE_WEIGHT = 10000.f;
+const static float OCCLUDER_DISTANCE_WEIGHT = 15000.f; // Originally 10000.
 static float ComputePotentialOccluderWeight(float ScreenSize, float DistanceSquared)
 {
 	return ScreenSize + OCCLUDER_DISTANCE_WEIGHT/DistanceSquared;
@@ -1034,15 +1041,25 @@ FGraphEventRef FSceneSoftwareOcclusion::SubmitScene(const FScene* Scene, const F
             	PotentialOccluders.Add(PotentialOccluder);
             }
         
-            bool bCanBeOccludee = !bHasHugeBounds && Proxy->CanBeOccluded() && (OcclusionFlags & EOcclusionFlags::CanBeOccluded) != 0;;	
+            bool bCanBeOccludee = !bHasHugeBounds && Proxy->CanBeOccluded() && (OcclusionFlags & EOcclusionFlags::CanBeOccluded) != 0;
             if (bCanBeOccludee)
             {
             	// Collect occludee bbox
             	CollectOccludeeGeom(Bounds, PrimitiveComponentId, *SceneData);
             	NumCollectedOccludees++;
             }
+#if defined(ENGINE_MINOR_VERSION) && ENGINE_MINOR_VERSION >= 5
+            else
+            {
+				// We know this isn't something we'll be occluding, so mark it as definitely Unoccluded.
+            	// UE5.5+ feature.
+            	View.PrimitiveDefinitelyUnoccludedMap[PrimitiveComponentId.PrimIDValue] = true;
+            }
+#endif
 		}
 
+		// We need to check the cached visibility map.
+		// We do a check for OCSubsystem as it's null for the first frame (possibly 2nd too).
 		if (OcSubsystem && !OcSubsystem->CachedVisibilityMap.IsEmpty())
 		{
 			for (auto& Tuple : OcSubsystem->CachedVisibilityMap)
@@ -1060,15 +1077,12 @@ FGraphEventRef FSceneSoftwareOcclusion::SubmitScene(const FScene* Scene, const F
 				UStaticMeshComponent* StaticMeshComponent = *OcSubsystem->IDToMeshComp.Find(PrimitiveComponentId.PrimIDValue);
 				const FBoxSphereBounds& Bounds = StaticMeshComponent->Bounds;
 
-				const bool bHasHugeBounds = Bounds.SphereRadius > HALF_WORLD_MAX/2.0f; // big objects like skybox
-		        
-				bool bCanBeOccludee = !bHasHugeBounds;
-				if (bCanBeOccludee)
-				{
-					// Collect occludee bbox
-					CollectOccludeeGeom(Bounds, PrimitiveComponentId, *SceneData);
-					NumCollectedOccludees++;
-				}
+				// Don't need to check flags nor if it has huge bounds here,
+				// wouldn't be in cache if it wasn't allowed to be an occluded object.
+				
+				// Collect occludee bbox
+				CollectOccludeeGeom(Bounds, PrimitiveComponentId, *SceneData);
+				NumCollectedOccludees++;
 			}
 		}
 
@@ -1092,7 +1106,7 @@ FGraphEventRef FSceneSoftwareOcclusion::SubmitScene(const FScene* Scene, const F
 			{
 				Collector.SetPrimitiveID(PrimitiveComponentId);
 				// Collect occluder geometry
-				NumCollectedOccluders += FSceneSoftwareOcclusion::CollectOccluderElements(Collector, Proxy, PotentialOccluder);
+				NumCollectedOccluders += CollectOccluderElements(Collector, Proxy, PotentialOccluder);
 			}
 
 			if (NumCollectedOccluders >= GSOMaxOccluderNum)
