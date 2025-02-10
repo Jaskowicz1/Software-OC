@@ -896,6 +896,7 @@ static int32 ApplyResults(const FScene* Scene, FViewInfo& View, const FOcclusion
 			if (*bVisiblePtr == false)
 			{
 				View.PrimitiveVisibilityMap[PrimitiveIndex] = false;
+				View.PrimitiveDefinitelyUnoccludedMap[PrimitiveIndex] = false;
 				NumOccluded++;
 			}
 #if defined(ENGINE_MINOR_VERSION) && ENGINE_MINOR_VERSION >= 5
@@ -1028,8 +1029,10 @@ FGraphEventRef FSceneSoftwareOcclusion::SubmitScene(const FScene* Scene, const F
 
             	if (OcSubsystem && OcSubsystem->IDToMeshComp.Contains(PrimitiveComponentId.PrimIDValue))
             	{
-            		auto StaticMeshComponent = *OcSubsystem->IDToMeshComp.Find(PrimitiveComponentId.PrimIDValue);
-            		PotentialOccluder.OccluderData = FOcclusionMeshData(StaticMeshComponent->GetStaticMesh());
+		            if(auto StaticMeshComponent = Cast<UStaticMeshComponent>(*OcSubsystem->IDToMeshComp.Find(PrimitiveComponentId.PrimIDValue)))
+            		{
+            			PotentialOccluder.OccluderData = FOcclusionMeshData(StaticMeshComponent->GetStaticMesh());
+            		}
             	}
 
             	PotentialOccluder.Weight = ComputePotentialOccluderWeight(ScreenSize, DistanceSquared);
@@ -1062,8 +1065,8 @@ FGraphEventRef FSceneSoftwareOcclusion::SubmitScene(const FScene* Scene, const F
 				{
 					continue;
 				}
-				UStaticMeshComponent* StaticMeshComponent = *OcSubsystem->IDToMeshComp.Find(PrimitiveComponentId.PrimIDValue);
-				const FBoxSphereBounds& Bounds = StaticMeshComponent->Bounds;
+				UMeshComponent* MeshComponent = *OcSubsystem->IDToMeshComp.Find(PrimitiveComponentId.PrimIDValue);
+				const FBoxSphereBounds& Bounds = MeshComponent->Bounds;
 
 				// Don't need to check flags nor if it has huge bounds here,
 				// wouldn't be in cache if it wasn't allowed to be an occluded object.

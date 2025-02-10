@@ -24,9 +24,15 @@ public:
 	virtual void Tick(float DeltaTime) override;
 
 	UPROPERTY()
-	TMap<uint32, TObjectPtr<UStaticMeshComponent>> IDToMeshComp;
+	TMap<uint32, TObjectPtr<UMeshComponent>> IDToMeshComp;
 
+	// Objects that we've culled.
+	// This will always return true (false objects are removed). Using Map on purpose for scaling reasons.
 	TMap<FPrimitiveComponentId, bool> CachedVisibilityMap;
+
+	// This is purely for objects that are meant to be hidden by the game/user
+	// This prevents cameras and whatnot from showing when they're not meant to.
+	TMap<FPrimitiveComponentId, bool> CachedHiddenMap;
 
 	void ForceUpdateMap();
 

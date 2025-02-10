@@ -3,6 +3,7 @@
 #include "OcclusionSceneView.h"
 
 #include "SoftwareOCSubsystem.h"
+#include "Camera/CameraComponent.h"
 #include "Runtime/Renderer/Private/ScenePrivate.h"
 #include "Runtime/Renderer/Private/SceneRendering.h"
 #include "Unreal/FOcclusionFrameResults.h"
@@ -48,6 +49,9 @@ void FOcclusionSceneViewExtension::PostRenderBasePassDeferred_RenderThread(FRDGB
 	if(OcSubsystem)
 	{
 		SceneSoftwareOcclusion->OcSubsystem = OcSubsystem;
+	} else
+	{
+		return;
 	}
 
 	if (!InView.bIsViewInfo)
@@ -85,24 +89,17 @@ void FOcclusionSceneViewExtension::PostRenderBasePassDeferred_RenderThread(FRDGB
 
 	for (auto& Tuple : FrameResults->VisibilityMap)
 	{
-		if (Tuple.Value)
-		{
-			OcSubsystem->CachedVisibilityMap.Remove(Tuple.Key); // Removing values ensures that the Gather step doesn't spend too long checked already cached values.
-		}
-		else
-		{
-			OcSubsystem->CachedVisibilityMap.Add(Tuple.Key, Tuple.Value);
-		}
+		OcSubsystem->CachedVisibilityMap.Add(Tuple.Key, Tuple.Value);
 	}
 
 	int NumOccluded = 0;
-	
-	for (TObjectIterator<UStaticMeshComponent> StaticMeshIterator; StaticMeshIterator; ++StaticMeshIterator)
+
+	for (TObjectIterator<UMeshComponent> MeshIterator; MeshIterator; ++MeshIterator)
 	{
-		UStaticMeshComponent* Component = *StaticMeshIterator;
+		UMeshComponent* Component = *MeshIterator;
 		if (!IsValid(Component) || !Component->IsRegistered() || !Component->GetWorld() ||
 			Component->GetWorld()->WorldType == EWorldType::Editor || Component->GetWorld()->WorldType == EWorldType::Inactive ||
-			Component->GetWorld()->WorldType == EWorldType::Inactive)
+			Component->GetWorld()->WorldType == EWorldType::Inactive || Component->GetWorld() != OcSubsystem->GetWorld())
 		{
 			continue;
 		}
@@ -129,12 +126,37 @@ void FOcclusionSceneViewExtension::PostRenderBasePassDeferred_RenderThread(FRDGB
 			ObjectHidden = !(*OcSubsystem->CachedVisibilityMap.Find(ComponentId));
 		}
 
-		AsyncTask(ENamedThreads::GameThread, [Component, ObjectHidden]()
+		if(!ObjectHidden)
 		{
-			if(IsValid(Component) && Component->GetWorld())
+			if(Component->GetWorld())
 			{
-				Component->SetHiddenInGame(ObjectHidden);
+				Component->GetSceneData().SetLastRenderTime(Component->GetWorld()->GetTimeSeconds(), true);
 			}
+		}
+
+		AsyncTask(ENamedThreads::GameThread, [this, Component, ObjectHidden]()
+		{
+			if(!IsValid(Component) || !Component->GetWorld())
+			{
+				return;
+			}
+
+			if(!OcSubsystem->CachedVisibilityMap.Contains(Component->GetPrimitiveSceneId()))
+			{
+				return;
+			}
+
+			if(Component->bHiddenInGame == *OcSubsystem->CachedVisibilityMap.Find(Component->GetPrimitiveSceneId()))
+			{
+				return;
+			}
+
+			if(Component->bHiddenInGame == ObjectHidden)
+			{
+				return;
+			}
+
+			Component->SetHiddenInGame(ObjectHidden);
 		});
 
 		if(GSOVisualizeOccluded)

@@ -61,12 +61,12 @@ void USoftwareOCSubsystem::Tick(float DeltaTime)
 
 void USoftwareOCSubsystem::ForceUpdateMap()
 {
-	for(TObjectIterator<UStaticMeshComponent> StaticMeshItr; StaticMeshItr; ++StaticMeshItr)
+	for(TObjectIterator<UMeshComponent> MeshItr; MeshItr; ++MeshItr)
 	{
-		UStaticMeshComponent* Component = *StaticMeshItr;
+		UMeshComponent* Component = *MeshItr;
 		if (!IsValid(Component) || !Component->IsRegistered() || !Component->GetWorld() ||
 			Component->GetWorld()->WorldType == EWorldType::Editor || Component->GetWorld()->WorldType == EWorldType::Inactive ||
-			Component->GetWorld()->WorldType == EWorldType::Inactive)
+			Component->GetWorld()->WorldType == EWorldType::Inactive || Component->GetWorld() != GetWorld())
 		{
 			continue;
 		}
