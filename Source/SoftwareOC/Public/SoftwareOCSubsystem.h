@@ -23,6 +23,7 @@ public:
 	
 	virtual void Tick(float DeltaTime) override;
 
+	// We store as uint32 because UPROPERTY doesn't like FPrimitiveComponentId
 	UPROPERTY()
 	TMap<uint32, TObjectPtr<UMeshComponent>> IDToMeshComp;
 

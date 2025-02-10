@@ -30,13 +30,15 @@ FOcclusionSceneViewExtension::FOcclusionSceneViewExtension(const FAutoRegister& 
 
 FOcclusionSceneViewExtension::~FOcclusionSceneViewExtension()
 {
-	OcSubsystem->CachedVisibilityMap.Empty();
-	
 	if(SceneSoftwareOcclusion)
 	{
 		SceneSoftwareOcclusion->OcSubsystem = nullptr;
 		delete SceneSoftwareOcclusion;
 	}
+
+	OcSubsystem->CachedVisibilityMap.Empty();
+	OcSubsystem->CachedHiddenMap.Empty();
+	OcSubsystem->IDToMeshComp.Empty();
 }
 
 void FOcclusionSceneViewExtension::PostRenderBasePassDeferred_RenderThread(FRDGBuilder& GraphBuilder,
@@ -77,6 +79,11 @@ void FOcclusionSceneViewExtension::PostRenderBasePassDeferred_RenderThread(FRDGB
 	{
 		return;
 	}
+	
+	if(Scene->World->IsBeingCleanedUp() || Scene->World->HasAnyFlags(RF_MirroredGarbage) || Scene->World->HasAnyFlags(RF_BeginDestroyed))
+	{
+		return;
+	}
 		
 	SceneSoftwareOcclusion->Process(Scene, *View);
 
@@ -104,6 +111,13 @@ void FOcclusionSceneViewExtension::PostRenderBasePassDeferred_RenderThread(FRDGB
 			continue;
 		}
 
+		// Paranoid sanity checks.
+		if(Component->GetWorld()->IsBeingCleanedUp() || Component->GetWorld()->HasAnyFlags(RF_MirroredGarbage) ||
+			Component->GetWorld()->HasAnyFlags(RF_BeginDestroyed))
+		{
+			return;
+		}
+
 		// Now make sure that these components aren't marked to be ignored.
 		// If they are, don't bother with them (saves us time).
 		if(Component->bTreatAsBackgroundForOcclusion == 1 || (Component->SceneProxy && !Component->SceneProxy->CanBeOccluded()))
@@ -113,7 +127,7 @@ void FOcclusionSceneViewExtension::PostRenderBasePassDeferred_RenderThread(FRDGB
 
 		FPrimitiveComponentId ComponentId = Component->GetPrimitiveSceneId();
 
-		if(Component->HasAnyFlags(RF_ClassDefaultObject))
+		if(Component->HasAnyFlags(RF_ClassDefaultObject) || Component->HasAnyFlags(RF_MirroredGarbage) || Component->HasAnyFlags(RF_BeginDestroyed))
 		{
 			continue;
 		}
@@ -134,8 +148,22 @@ void FOcclusionSceneViewExtension::PostRenderBasePassDeferred_RenderThread(FRDGB
 			}
 		}
 
-		AsyncTask(ENamedThreads::GameThread, [this, Component, ObjectHidden]()
+		AsyncTask(ENamedThreads::GameThread, [this, Scene, Component, ObjectHidden]()
 		{
+			// Objects can start to die in this frame (since it runs 1 frame later than the code outside of this task).
+			// We detect them here and stop processing them if so.
+			if(!Component || !Component->IsRegistered() || Component->HasAnyFlags(RF_MirroredGarbage) ||
+				Component->HasAnyFlags(RF_BeginDestroyed) || Component->IsBeingDestroyed())
+			{
+				return;
+			}
+
+			// Paranoid Sanity Check.
+			if(Scene->World->IsBeingCleanedUp() || Scene->World->HasAnyFlags(RF_MirroredGarbage) || Scene->World->HasAnyFlags(RF_BeginDestroyed))
+			{
+				return;
+			}
+			
 			if(!IsValid(Component) || !Component->GetWorld())
 			{
 				return;

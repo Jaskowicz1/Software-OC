@@ -874,9 +874,11 @@ FSceneSoftwareOcclusion::~FSceneSoftwareOcclusion()
 	
 	if (Available)
 	{
-		// make sure async task is done
-		FlushResults();
-
+		if(TaskRef)
+		{
+			TaskRef.SafeRelease();
+		}
+		
 		Available.Reset();
 	}
 }
@@ -965,6 +967,11 @@ FGraphEventRef FSceneSoftwareOcclusion::SubmitScene(const FScene* Scene, const F
 {
 	int32 NumCollectedOccluders = 0;
 	int32 NumCollectedOccludees = 0;
+	
+	if(Scene->World->IsBeingCleanedUp() || Scene->World->HasAnyFlags(RF_MirroredGarbage) || Scene->World->HasAnyFlags(RF_BeginDestroyed))
+	{
+		return FGraphEventRef();
+	}
 			
 	const FMatrix ViewProjMat = View.ViewMatrices.GetViewMatrix() * View.ViewMatrices.GetProjectionNoAAMatrix();
 	const FVector ViewOrigin = View.ViewMatrices.GetViewOrigin();
@@ -1066,6 +1073,14 @@ FGraphEventRef FSceneSoftwareOcclusion::SubmitScene(const FScene* Scene, const F
 					continue;
 				}
 				UMeshComponent* MeshComponent = *OcSubsystem->IDToMeshComp.Find(PrimitiveComponentId.PrimIDValue);
+
+				if(!MeshComponent || !IsValid(MeshComponent) ||
+					MeshComponent->HasAnyFlags(RF_MirroredGarbage) ||
+					MeshComponent->HasAnyFlags(RF_BeginDestroyed))
+				{
+					continue;
+				}
+				
 				const FBoxSphereBounds& Bounds = MeshComponent->Bounds;
 
 				// Don't need to check flags nor if it has huge bounds here,
@@ -1137,6 +1152,13 @@ int32 FSceneSoftwareOcclusion::Process(const FScene* Scene, FViewInfo& View)
 
 	// Submit occlusion scene for next frame
 	Processing = MakeUnique<FOcclusionFrameResults>();
+
+	// Ensure we aren't about to run with the world shutting down.
+	if(Scene->World->IsBeingCleanedUp() || Scene->World->HasAnyFlags(RF_MirroredGarbage) || Scene->World->HasAnyFlags(RF_BeginDestroyed))
+	{
+		return 0;
+	}
+	
 	TaskRef = SubmitScene(Scene, View, Processing.Get());
 
 	// Apply available occlusion results

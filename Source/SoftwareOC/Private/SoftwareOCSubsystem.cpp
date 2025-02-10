@@ -61,6 +61,9 @@ void USoftwareOCSubsystem::Tick(float DeltaTime)
 
 void USoftwareOCSubsystem::ForceUpdateMap()
 {
+	// Empty list just incase it's got dangling pointers (Shouldn't but never worth the risk).
+	IDToMeshComp.Empty();
+	
 	for(TObjectIterator<UMeshComponent> MeshItr; MeshItr; ++MeshItr)
 	{
 		UMeshComponent* Component = *MeshItr;
@@ -77,5 +80,23 @@ void USoftwareOCSubsystem::ForceUpdateMap()
 		}
 		
 		IDToMeshComp.Add(Component->GetPrimitiveSceneId().PrimIDValue, Component);
+	}
+
+	// Clean up Cache maps, as they may not be valid and won't auto update (not marked as UPROPERTY and can't be).
+	
+	TArray<FPrimitiveComponentId> IDsToRemove;
+
+	for(auto& Tuple : CachedVisibilityMap)
+	{
+		if(!IDToMeshComp.Contains(Tuple.Key.PrimIDValue))
+		{
+			IDsToRemove.Add(Tuple.Key);
+		}
+	}
+
+	for(FPrimitiveComponentId ID : IDsToRemove)
+	{
+		CachedVisibilityMap.Remove(ID);
+		CachedHiddenMap.Remove(ID);
 	}
 }
