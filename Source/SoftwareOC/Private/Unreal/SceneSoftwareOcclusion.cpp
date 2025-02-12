@@ -965,7 +965,7 @@ FGraphEventRef FSceneSoftwareOcclusion::SubmitScene(const FScene* Scene, const F
 	int32 NumCollectedOccluders = 0;
 	int32 NumCollectedOccludees = 0;
 	
-	if(Scene->World->IsBeingCleanedUp() || Scene->World->HasAnyFlags(RF_MirroredGarbage) || Scene->World->HasAnyFlags(RF_BeginDestroyed))
+	if(!Scene->World || !IsValid(Scene->World) || Scene->World->IsBeingCleanedUp() || Scene->World->HasAnyFlags(RF_MirroredGarbage) || Scene->World->HasAnyFlags(RF_BeginDestroyed))
 	{
 		return FGraphEventRef();
 	}
@@ -1161,7 +1161,7 @@ int32 FSceneSoftwareOcclusion::Process(const FScene* Scene, FViewInfo& View)
 	Available = MoveTemp(Processing);
 
 	// Ensure we aren't about to run with the world shutting down.
-	if(Scene->World->IsBeingCleanedUp() || Scene->World->HasAnyFlags(RF_MirroredGarbage) || Scene->World->HasAnyFlags(RF_BeginDestroyed))
+	if(!Scene->World || !IsValid(Scene->World) || Scene->World->IsBeingCleanedUp() || Scene->World->HasAnyFlags(RF_MirroredGarbage) || Scene->World->HasAnyFlags(RF_BeginDestroyed))
 	{
 		return 0;
 	}
