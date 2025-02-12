@@ -78,7 +78,7 @@ void FOcclusionSceneViewExtension::PostRenderBasePassDeferred_RenderThread(FRDGB
 		return;
 	}
 	
-	if(Scene->World->IsBeingCleanedUp() || Scene->World->HasAnyFlags(RF_MirroredGarbage) || Scene->World->HasAnyFlags(RF_BeginDestroyed))
+	if(!Scene->World || !IsValid(Scene->World) || Scene->World->IsBeingCleanedUp() || Scene->World->HasAnyFlags(RF_MirroredGarbage) || Scene->World->HasAnyFlags(RF_BeginDestroyed))
 	{
 		return;
 	}
@@ -161,7 +161,7 @@ void FOcclusionSceneViewExtension::PostRenderBasePassDeferred_RenderThread(FRDGB
 				}
 
 				// Paranoid Sanity Check.
-				if(Scene->World->IsBeingCleanedUp() || Scene->World->HasAnyFlags(RF_MirroredGarbage) || Scene->World->HasAnyFlags(RF_BeginDestroyed))
+				if(!Scene->World || !IsValid(Scene->World) || Scene->World->IsBeingCleanedUp() || Scene->World->HasAnyFlags(RF_MirroredGarbage) || Scene->World->HasAnyFlags(RF_BeginDestroyed))
 				{
 					return;
 				}
