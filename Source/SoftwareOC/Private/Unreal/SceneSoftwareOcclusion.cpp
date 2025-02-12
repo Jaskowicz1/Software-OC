@@ -1160,14 +1160,14 @@ int32 FSceneSoftwareOcclusion::Process(const FScene* Scene, FViewInfo& View)
 	// Finished processing occlusion, set results as available
 	Available = MoveTemp(Processing);
 
-	// Submit occlusion scene for next frame
-	Processing = MakeUnique<FOcclusionFrameResults>();
-
 	// Ensure we aren't about to run with the world shutting down.
 	if(Scene->World->IsBeingCleanedUp() || Scene->World->HasAnyFlags(RF_MirroredGarbage) || Scene->World->HasAnyFlags(RF_BeginDestroyed))
 	{
 		return 0;
 	}
+
+	// Submit occlusion scene for next frame
+	Processing = MakeUnique<FOcclusionFrameResults>();
 	
 	TaskRef = SubmitScene(Scene, View, Processing.Get());
 
