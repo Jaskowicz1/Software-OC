@@ -68,35 +68,29 @@ void USoftwareOCSubsystem::ForceUpdateMap()
 	{
 		UMeshComponent* Component = *MeshItr;
 		if (!IsValid(Component) || !Component->IsRegistered() || !Component->GetWorld() ||
-			Component->GetWorld()->WorldType == EWorldType::Editor || Component->GetWorld()->WorldType == EWorldType::Inactive ||
-			Component->GetWorld()->WorldType == EWorldType::Inactive || Component->GetWorld() != GetWorld())
+			Component->GetWorld()->WorldType == EWorldType::Editor ||
+			Component->GetWorld()->WorldType == EWorldType::Inactive ||
+			Component->GetWorld() != GetWorld())
 		{
 			continue;
 		}
 
-		if (Component->HasAnyFlags(RF_ClassDefaultObject))
+		// Paranoid sanity checks.
+		if(Component->GetWorld()->IsBeingCleanedUp() || Component->GetWorld()->HasAnyFlags(RF_MirroredGarbage) ||
+			Component->GetWorld()->HasAnyFlags(RF_BeginDestroyed) || !Component->GetWorld()->HasAnyFlags(RF_WasLoaded))
+		{
+			return;
+		}
+
+		// Now make sure that these components aren't marked to be ignored.
+		// If they are, don't bother with them (saves us time).
+		if(Component->bTreatAsBackgroundForOcclusion == 1 ||
+			(Component->SceneProxy && ( !Component->SceneProxy->CanBeOccluded() ||
+				!Component->SceneProxy->ShouldUseAsOccluder())))
 		{
 			continue;
 		}
 		
 		IDToMeshComp.Add(Component->GetPrimitiveSceneId().PrimIDValue, Component);
-	}
-
-	// Clean up Cache maps, as they may not be valid and won't auto update (not marked as UPROPERTY and can't be).
-	
-	TArray<FPrimitiveComponentId> IDsToRemove;
-
-	for(auto& Tuple : CachedVisibilityMap)
-	{
-		if(!IDToMeshComp.Contains(Tuple.Key.PrimIDValue))
-		{
-			IDsToRemove.Add(Tuple.Key);
-		}
-	}
-
-	for(FPrimitiveComponentId ID : IDsToRemove)
-	{
-		CachedVisibilityMap.Remove(ID);
-		CachedHiddenMap.Remove(ID);
 	}
 }

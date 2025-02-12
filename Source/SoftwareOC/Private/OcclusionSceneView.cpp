@@ -35,9 +35,7 @@ FOcclusionSceneViewExtension::~FOcclusionSceneViewExtension()
 		SceneSoftwareOcclusion->OcSubsystem = nullptr;
 		delete SceneSoftwareOcclusion;
 	}
-
-	OcSubsystem->CachedVisibilityMap.Empty();
-	OcSubsystem->CachedHiddenMap.Empty();
+	
 	OcSubsystem->IDToMeshComp.Empty();
 }
 
@@ -94,26 +92,22 @@ void FOcclusionSceneViewExtension::PostRenderBasePassDeferred_RenderThread(FRDGB
 		return;
 	}
 
-	for (auto& Tuple : FrameResults->VisibilityMap)
-	{
-		OcSubsystem->CachedVisibilityMap.Add(Tuple.Key, Tuple.Value);
-	}
-
 	int NumOccluded = 0;
 
 	for (TObjectIterator<UMeshComponent> MeshIterator; MeshIterator; ++MeshIterator)
 	{
 		UMeshComponent* Component = *MeshIterator;
 		if (!IsValid(Component) || !Component->IsRegistered() || !Component->GetWorld() ||
-			Component->GetWorld()->WorldType == EWorldType::Editor || Component->GetWorld()->WorldType == EWorldType::Inactive ||
-			Component->GetWorld()->WorldType == EWorldType::Inactive || Component->GetWorld() != OcSubsystem->GetWorld())
+			Component->GetWorld()->WorldType == EWorldType::Editor ||
+			Component->GetWorld()->WorldType == EWorldType::Inactive ||
+			Component->GetWorld() != OcSubsystem->GetWorld())
 		{
 			continue;
 		}
 
 		// Paranoid sanity checks.
 		if(Component->GetWorld()->IsBeingCleanedUp() || Component->GetWorld()->HasAnyFlags(RF_MirroredGarbage) ||
-			Component->GetWorld()->HasAnyFlags(RF_BeginDestroyed))
+			Component->GetWorld()->HasAnyFlags(RF_BeginDestroyed) || !Component->GetWorld()->HasAnyFlags(RF_WasLoaded))
 		{
 			return;
 		}
@@ -133,59 +127,53 @@ void FOcclusionSceneViewExtension::PostRenderBasePassDeferred_RenderThread(FRDGB
 		}
 
 		bool ObjectHidden = !FrameResults->IsVisible(ComponentId);
-		
-		// Ensure that any values that aren't in for this frame, are checked against a cache.
-		if(OcSubsystem->CachedVisibilityMap.Contains(Component->GetPrimitiveSceneId()))
-		{
-			ObjectHidden = !(*OcSubsystem->CachedVisibilityMap.Find(ComponentId));
-		}
 
+		// This prevents us from making meshes visible that weren't in the visibility map
+		// as IsVisible will just return true if a ComponentID wasn't found in the visibility map.
+		if(!FrameResults->VisibilityMap.Contains(ComponentId))
+		{
+			ObjectHidden = Component->bHiddenInGame;
+		}
+		
 		if(!ObjectHidden)
 		{
+			// This is to fix animations not playing in UE5.5 when occlusion culling is off.
 			if(Component->GetWorld())
 			{
 				Component->GetSceneData().SetLastRenderTime(Component->GetWorld()->GetTimeSeconds(), true);
 			}
 		}
 
-		AsyncTask(ENamedThreads::GameThread, [this, Scene, Component, ObjectHidden]()
+		// We shouldn't tell the GameThead to launch a task to set visibility if we haven't changed.
+		// This can result in a major optimisation if there are thousands of objects in a scene.
+		if(Component->bHiddenInGame != ObjectHidden)
 		{
-			// Objects can start to die in this frame (since it runs 1 frame later than the code outside of this task).
-			// We detect them here and stop processing them if so.
-			if(!Component || !Component->IsRegistered() || Component->HasAnyFlags(RF_MirroredGarbage) ||
-				Component->HasAnyFlags(RF_BeginDestroyed) || Component->IsBeingDestroyed())
+			AsyncTask(ENamedThreads::GameThread, [this, Scene, Component, ObjectHidden]()
 			{
-				return;
-			}
+				// Objects can start to die in this frame (since it runs 1 frame later than the code outside of this task).
+				// We detect them here and stop processing them if so.
+				if(!Component || !Component->IsRegistered() || Component->HasAnyFlags(RF_MirroredGarbage) ||
+					Component->HasAnyFlags(RF_BeginDestroyed) ||
+					!Component->GetWorld()->HasAnyFlags(RF_WasLoaded) ||
+					Component->IsBeingDestroyed())
+				{
+					return;
+				}
 
-			// Paranoid Sanity Check.
-			if(Scene->World->IsBeingCleanedUp() || Scene->World->HasAnyFlags(RF_MirroredGarbage) || Scene->World->HasAnyFlags(RF_BeginDestroyed))
-			{
-				return;
-			}
-			
-			if(!IsValid(Component) || !Component->GetWorld())
-			{
-				return;
-			}
+				// Paranoid Sanity Check.
+				if(Scene->World->IsBeingCleanedUp() || Scene->World->HasAnyFlags(RF_MirroredGarbage) || Scene->World->HasAnyFlags(RF_BeginDestroyed))
+				{
+					return;
+				}
+				
+				if(!IsValid(Component) || !Component->GetWorld())
+				{
+					return;
+				}
 
-			if(!OcSubsystem->CachedVisibilityMap.Contains(Component->GetPrimitiveSceneId()))
-			{
-				return;
-			}
-
-			if(Component->bHiddenInGame == *OcSubsystem->CachedVisibilityMap.Find(Component->GetPrimitiveSceneId()))
-			{
-				return;
-			}
-
-			if(Component->bHiddenInGame == ObjectHidden)
-			{
-				return;
-			}
-
-			Component->SetHiddenInGame(ObjectHidden);
-		});
+				Component->SetHiddenInGame(ObjectHidden);
+			});
+		}
 
 		if(GSOVisualizeOccluded)
 		{
@@ -193,14 +181,7 @@ void FOcclusionSceneViewExtension::PostRenderBasePassDeferred_RenderThread(FRDGB
 
 			if(!FrameResults->VisibilityMap.Contains(ComponentId))
 			{
-				if(!OcSubsystem->CachedVisibilityMap.Contains(ComponentId))
-				{
-					OccludedColour = FColor::Yellow;
-				}
-				else
-				{
-					OccludedColour = ObjectHidden ? FColor::Magenta : FColor::Red;
-				}
+				OccludedColour = FColor::Yellow;
 			}
 
 			// DrawDebugBox throws an error if we try draw immediately. We should until the world has been alive

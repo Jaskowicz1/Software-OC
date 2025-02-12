@@ -867,19 +867,16 @@ FSceneSoftwareOcclusion::FSceneSoftwareOcclusion()
 
 FSceneSoftwareOcclusion::~FSceneSoftwareOcclusion()
 {
+	if (Available)
+	{
+		FlushResults();
+		
+		Available.Reset();
+	}
+
 	if (Processing)
 	{
 		Processing.Reset();
-	}
-	
-	if (Available)
-	{
-		if(TaskRef)
-		{
-			TaskRef.SafeRelease();
-		}
-		
-		Available.Reset();
 	}
 }
 
@@ -999,10 +996,21 @@ FGraphEventRef FSceneSoftwareOcclusion::SubmitScene(const FScene* Scene, const F
 		{
 			uint32 PrimitiveIndex = BitIt.GetIndex();
 			const FPrimitiveSceneInfo* PrimitiveSceneInfo = Scene->Primitives[PrimitiveIndex];
+
+			if (!PrimitiveSceneInfo)
+			{
+				continue;
+			}
+			
 			const FBoxSphereBounds& Bounds = Scene->PrimitiveOcclusionBounds[PrimitiveIndex];
 			const uint8 OcclusionFlags = Scene->PrimitiveOcclusionFlags[PrimitiveIndex];
 			const FPrimitiveComponentId PrimitiveComponentId = PrimitiveSceneInfo->PrimitiveComponentId;
 			FPrimitiveSceneProxy* Proxy = PrimitiveSceneInfo->Proxy;
+
+			if (!Proxy)
+			{
+				continue;
+			}
 
 			// Ignore random components that shouldn't be occluded.
 			if(Proxy->GetMeshDrawCommandStatsCategory() == "LineBatchComponent")
@@ -1056,11 +1064,12 @@ FGraphEventRef FSceneSoftwareOcclusion::SubmitScene(const FScene* Scene, const F
             }
 		}
 
-		// We need to check the cached visibility map.
-		// We do a check for OCSubsystem as it's null for the first frame (possibly 2nd too).
-		if (OcSubsystem && !OcSubsystem->CachedVisibilityMap.IsEmpty())
+		/*
+		// Check previous frame's data.
+		// We do a check for OCSubsystem as it's null for the first frame and we require it to get the Mesh Comp.
+		if (OcSubsystem && Available.IsValid() && !Available.Get()->VisibilityMap.IsEmpty())
 		{
-			for (auto& Tuple : OcSubsystem->CachedVisibilityMap)
+			for (auto Tuple : Available.Get()->VisibilityMap)
 			{
 				if (Tuple.Value)
 				{
@@ -1091,6 +1100,7 @@ FGraphEventRef FSceneSoftwareOcclusion::SubmitScene(const FScene* Scene, const F
 				NumCollectedOccludees++;
 			}
 		}
+		*/
 
 		// Sort potential occluders by weight
 		PotentialOccluders.Sort([&](const FPotentialOccluderPrimitive& A, const FPotentialOccluderPrimitive& B) { 

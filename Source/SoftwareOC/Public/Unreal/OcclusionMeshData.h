@@ -37,8 +37,15 @@ public:
 			const FVector3f* V0 = &LODModel.VertexBuffers.PositionVertexBuffer.VertexPosition(0);
 			const uint16* Indices = IndexBuffer.AccessStream16();
 
-			FMemory::Memcpy(VerticesSP.GetData(), V0, NumVtx * sizeof(FVector3f));
-			FMemory::Memcpy(IndicesSP.GetData(), Indices, NumIndices * sizeof(uint16));
+			if (V0)
+			{
+				FMemory::Memcpy(VerticesSP.GetData(), V0, NumVtx * sizeof(FVector3f));
+			}
+
+			if (Indices)
+			{
+				FMemory::Memcpy(IndicesSP.GetData(), Indices, NumIndices * sizeof(uint16));
+			}
 		}
 	}
 
