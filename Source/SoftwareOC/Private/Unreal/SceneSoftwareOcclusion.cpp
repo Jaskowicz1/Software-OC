@@ -867,19 +867,16 @@ FSceneSoftwareOcclusion::FSceneSoftwareOcclusion()
 
 FSceneSoftwareOcclusion::~FSceneSoftwareOcclusion()
 {
+	if (Available)
+	{
+		FlushResults();
+		
+		Available.Reset();
+	}
+
 	if (Processing)
 	{
 		Processing.Reset();
-	}
-	
-	if (Available)
-	{
-		if(TaskRef)
-		{
-			TaskRef.SafeRelease();
-		}
-		
-		Available.Reset();
 	}
 }
 
@@ -968,7 +965,7 @@ FGraphEventRef FSceneSoftwareOcclusion::SubmitScene(const FScene* Scene, const F
 	int32 NumCollectedOccluders = 0;
 	int32 NumCollectedOccludees = 0;
 	
-	if(!Scene->World || !IsValid(Scene->World) || Scene->World->IsBeingCleanedUp() || Scene->World->HasAnyFlags(RF_MirroredGarbage) || Scene->World->HasAnyFlags(RF_BeginDestroyed))
+	if(!FOcclusionSceneViewExtension::IsSceneWorldValid(Scene))
 	{
 		return FGraphEventRef();
 	}
@@ -999,10 +996,21 @@ FGraphEventRef FSceneSoftwareOcclusion::SubmitScene(const FScene* Scene, const F
 		{
 			uint32 PrimitiveIndex = BitIt.GetIndex();
 			const FPrimitiveSceneInfo* PrimitiveSceneInfo = Scene->Primitives[PrimitiveIndex];
+
+			if (!PrimitiveSceneInfo)
+			{
+				continue;
+			}
+			
 			const FBoxSphereBounds& Bounds = Scene->PrimitiveOcclusionBounds[PrimitiveIndex];
 			const uint8 OcclusionFlags = Scene->PrimitiveOcclusionFlags[PrimitiveIndex];
 			const FPrimitiveComponentId PrimitiveComponentId = PrimitiveSceneInfo->PrimitiveComponentId;
 			FPrimitiveSceneProxy* Proxy = PrimitiveSceneInfo->Proxy;
+
+			if (!Proxy)
+			{
+				continue;
+			}
 
 			// Ignore random components that shouldn't be occluded.
 			if(Proxy->GetMeshDrawCommandStatsCategory() == "LineBatchComponent")
@@ -1030,21 +1038,26 @@ FGraphEventRef FSceneSoftwareOcclusion::SubmitScene(const FScene* Scene, const F
         
             if (bCanBeOccluder)
             {
-            	FPotentialOccluderPrimitive PotentialOccluder{};
-
-            	PotentialOccluder.PrimitiveSceneInfo = PrimitiveSceneInfo;
-
-            	if (OcSubsystem && OcSubsystem->IDToMeshComp.Contains(PrimitiveComponentId.PrimIDValue))
+            	if (OcSubsystem && OcSubsystem->IDToMeshComp.Find(PrimitiveComponentId.PrimIDValue) != nullptr)
             	{
-		            if(auto StaticMeshComponent = Cast<UStaticMeshComponent>(*OcSubsystem->IDToMeshComp.Find(PrimitiveComponentId.PrimIDValue)))
+            		if(auto StaticMeshComponent = Cast<UStaticMeshComponent>(*OcSubsystem->IDToMeshComp.Find(PrimitiveComponentId.PrimIDValue)))
             		{
-            			PotentialOccluder.OccluderData = FOcclusionMeshData(StaticMeshComponent->GetStaticMesh());
+            			if (USoftwareOCSubsystem::CheckComponentValidWorld(StaticMeshComponent, OcSubsystem) &&
+            				USoftwareOCSubsystem::CheckComponentNotBeingDestroyed(StaticMeshComponent))
+            			{
+            				FPotentialOccluderPrimitive PotentialOccluder{};
+            				
+            				PotentialOccluder.PrimitiveSceneInfo = PrimitiveSceneInfo;
+            				PotentialOccluder.OccluderData = FOcclusionMeshData(StaticMeshComponent->GetStaticMesh());
+            				if(PotentialOccluder.OccluderData.MeshDataCorrectlySet)
+            				{
+            					PotentialOccluder.Weight = ComputePotentialOccluderWeight(ScreenSize, DistanceSquared);
+
+            					PotentialOccluders.Add(PotentialOccluder);
+            				}
+            			}
             		}
             	}
-
-            	PotentialOccluder.Weight = ComputePotentialOccluderWeight(ScreenSize, DistanceSquared);
-
-            	PotentialOccluders.Add(PotentialOccluder);
             }
         
             bool bCanBeOccludee = !bHasHugeBounds && Proxy->CanBeOccluded() && (OcclusionFlags & EOcclusionFlags::CanBeOccluded) != 0;
@@ -1055,12 +1068,12 @@ FGraphEventRef FSceneSoftwareOcclusion::SubmitScene(const FScene* Scene, const F
             	NumCollectedOccludees++;
             }
 		}
-
-		// We need to check the cached visibility map.
-		// We do a check for OCSubsystem as it's null for the first frame (possibly 2nd too).
-		if (OcSubsystem && !OcSubsystem->CachedVisibilityMap.IsEmpty())
+		
+		// Check previous frame's data.
+		// We do a check for OCSubsystem as it's null for the first frame and we require it to get the Mesh Comp.
+		if (OcSubsystem && Available.IsValid() && !Available.Get()->VisibilityMap.IsEmpty())
 		{
-			for (auto& Tuple : OcSubsystem->CachedVisibilityMap)
+			for (auto Tuple : Available.Get()->VisibilityMap)
 			{
 				if (Tuple.Value)
 				{
@@ -1074,9 +1087,7 @@ FGraphEventRef FSceneSoftwareOcclusion::SubmitScene(const FScene* Scene, const F
 				}
 				UMeshComponent* MeshComponent = *OcSubsystem->IDToMeshComp.Find(PrimitiveComponentId.PrimIDValue);
 
-				if(!MeshComponent || !IsValid(MeshComponent) ||
-					MeshComponent->HasAnyFlags(RF_MirroredGarbage) ||
-					MeshComponent->HasAnyFlags(RF_BeginDestroyed))
+				if (!USoftwareOCSubsystem::CheckComponentNotBeingDestroyed(MeshComponent))
 				{
 					continue;
 				}
@@ -1130,7 +1141,7 @@ FGraphEventRef FSceneSoftwareOcclusion::SubmitScene(const FScene* Scene, const F
 	
 	// Submit occlusion task
 	FOcclusionSceneData* SceneDataParam = SceneData.Release();
-	return FFunctionGraphTask::CreateAndDispatchWhenReady([SceneDataParam, Results]()
+	return FFunctionGraphTask::CreateAndDispatchWhenReady([Scene, SceneDataParam, Results]()
 	{
 		ProcessOcclusionFrame(*SceneDataParam, *Results);
 		delete SceneDataParam;
@@ -1150,14 +1161,14 @@ int32 FSceneSoftwareOcclusion::Process(const FScene* Scene, FViewInfo& View)
 	// Finished processing occlusion, set results as available
 	Available = MoveTemp(Processing);
 
-	// Submit occlusion scene for next frame
-	Processing = MakeUnique<FOcclusionFrameResults>();
-
 	// Ensure we aren't about to run with the world shutting down.
-	if(!Scene->World || !IsValid(Scene->World) || Scene->World->IsBeingCleanedUp() || Scene->World->HasAnyFlags(RF_MirroredGarbage) || Scene->World->HasAnyFlags(RF_BeginDestroyed))
+	if(!FOcclusionSceneViewExtension::IsSceneWorldValid(Scene))
 	{
 		return 0;
 	}
+
+	// Submit occlusion scene for next frame
+	Processing = MakeUnique<FOcclusionFrameResults>();
 	
 	TaskRef = SubmitScene(Scene, View, Processing.Get());
 

@@ -17,23 +17,22 @@ public:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
 
+	void Reset();
+
 	virtual TStatId GetStatId() const override;
 
 	virtual bool IsTickable() const override;
 	
 	virtual void Tick(float DeltaTime) override;
 
+	// Context should always be the subsystem
+	static bool CheckComponentValidWorld(UMeshComponent* Component, UObject* Context);
+
+	static bool CheckComponentNotBeingDestroyed(UMeshComponent* Component);
+
 	// We store as uint32 because UPROPERTY doesn't like FPrimitiveComponentId
 	UPROPERTY()
 	TMap<uint32, TObjectPtr<UMeshComponent>> IDToMeshComp;
-
-	// Objects that we've culled.
-	// This will always return true (false objects are removed). Using Map on purpose for scaling reasons.
-	TMap<FPrimitiveComponentId, bool> CachedVisibilityMap;
-
-	// This is purely for objects that are meant to be hidden by the game/user
-	// This prevents cameras and whatnot from showing when they're not meant to.
-	TMap<FPrimitiveComponentId, bool> CachedHiddenMap;
 
 	void ForceUpdateMap();
 

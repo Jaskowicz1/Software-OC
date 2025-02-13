@@ -37,8 +37,22 @@ public:
 			const FVector3f* V0 = &LODModel.VertexBuffers.PositionVertexBuffer.VertexPosition(0);
 			const uint16* Indices = IndexBuffer.AccessStream16();
 
+			if (!V0)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("Vertex Buffer returned null. Mesh %s will be removed from Occluders."), *GetNameSafe(Mesh));
+				return;
+			}
+
+			if (!Indices)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("Index Buffer returned null. Mesh %s will be removed from Occluders."), *GetNameSafe(Mesh));
+				return;
+			}
+			
 			FMemory::Memcpy(VerticesSP.GetData(), V0, NumVtx * sizeof(FVector3f));
 			FMemory::Memcpy(IndicesSP.GetData(), Indices, NumIndices * sizeof(uint16));
+			
+			MeshDataCorrectlySet = true;
 		}
 	}
 
@@ -50,6 +64,8 @@ public:
 	TArray<uint16>			IndicesSP{};
 	
 	FPrimitiveComponentId	PrimId; // Has a zero constructor.
+
+	bool MeshDataCorrectlySet{ false };
 };
 
 struct FPotentialOccluderPrimitive
