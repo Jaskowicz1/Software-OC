@@ -17,11 +17,18 @@ public:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
 
+	void Reset();
+
 	virtual TStatId GetStatId() const override;
 
 	virtual bool IsTickable() const override;
 	
 	virtual void Tick(float DeltaTime) override;
+
+	// Context should always be the subsystem
+	static bool CheckComponentValidWorld(UMeshComponent* Component, UObject* Context);
+
+	static bool CheckComponentNotBeingDestroyed(UMeshComponent* Component);
 
 	// We store as uint32 because UPROPERTY doesn't like FPrimitiveComponentId
 	UPROPERTY()

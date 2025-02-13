@@ -19,7 +19,7 @@ struct FOcclusionFrameResults
 	{
 		if(!VisibilityMap.Contains(ID))
 		{
-			return true;
+			return true; // Assume that any mesh that isn't in this list, should be visible.
 		}
 		
 		return *VisibilityMap.Find(ID);

@@ -24,4 +24,6 @@ public:
 	
 	TArray<bool>* SubIsOccluded = nullptr;
 	USoftwareOCSubsystem* OcSubsystem = nullptr;
+
+	static bool IsSceneWorldValid(const FScene* InScene);
 };

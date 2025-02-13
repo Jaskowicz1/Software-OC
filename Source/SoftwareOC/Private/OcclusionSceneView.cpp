@@ -73,12 +73,7 @@ void FOcclusionSceneViewExtension::PostRenderBasePassDeferred_RenderThread(FRDGB
 
 	FScene* Scene = InView.ViewActor->GetWorld()->Scene->GetRenderScene();
 	
-	if (!Scene)
-	{
-		return;
-	}
-	
-	if(!Scene->World || !IsValid(Scene->World) || Scene->World->IsBeingCleanedUp() || Scene->World->HasAnyFlags(RF_MirroredGarbage) || Scene->World->HasAnyFlags(RF_BeginDestroyed))
+	if(!IsSceneWorldValid(Scene))
 	{
 		return;
 	}
@@ -97,19 +92,10 @@ void FOcclusionSceneViewExtension::PostRenderBasePassDeferred_RenderThread(FRDGB
 	for (TObjectIterator<UMeshComponent> MeshIterator; MeshIterator; ++MeshIterator)
 	{
 		UMeshComponent* Component = *MeshIterator;
-		if (!IsValid(Component) || !Component->IsRegistered() || !Component->GetWorld() ||
-			Component->GetWorld()->WorldType == EWorldType::Editor ||
-			Component->GetWorld()->WorldType == EWorldType::Inactive ||
-			Component->GetWorld() != OcSubsystem->GetWorld())
+		if (!USoftwareOCSubsystem::CheckComponentValidWorld(Component, OcSubsystem) ||
+			!USoftwareOCSubsystem::CheckComponentNotBeingDestroyed(Component))
 		{
 			continue;
-		}
-
-		// Paranoid sanity checks.
-		if(Component->GetWorld()->IsBeingCleanedUp() || Component->GetWorld()->HasAnyFlags(RF_MirroredGarbage) ||
-			Component->GetWorld()->HasAnyFlags(RF_BeginDestroyed) || !Component->GetWorld()->HasAnyFlags(RF_WasLoaded))
-		{
-			return;
 		}
 
 		// Now make sure that these components aren't marked to be ignored.
@@ -120,11 +106,6 @@ void FOcclusionSceneViewExtension::PostRenderBasePassDeferred_RenderThread(FRDGB
 		}
 
 		FPrimitiveComponentId ComponentId = Component->GetPrimitiveSceneId();
-
-		if(Component->HasAnyFlags(RF_ClassDefaultObject) || Component->HasAnyFlags(RF_MirroredGarbage) || Component->HasAnyFlags(RF_BeginDestroyed))
-		{
-			continue;
-		}
 
 		bool ObjectHidden = !FrameResults->IsVisible(ComponentId);
 
@@ -138,10 +119,7 @@ void FOcclusionSceneViewExtension::PostRenderBasePassDeferred_RenderThread(FRDGB
 		if(!ObjectHidden)
 		{
 			// This is to fix animations not playing in UE5.5 when occlusion culling is off.
-			if(Component->GetWorld())
-			{
-				Component->GetSceneData().SetLastRenderTime(Component->GetWorld()->GetTimeSeconds(), true);
-			}
+			Component->GetSceneData().SetLastRenderTime(Component->GetWorld()->GetTimeSeconds(), true);
 		}
 
 		// We shouldn't tell the GameThead to launch a task to set visibility if we haven't changed.
@@ -152,21 +130,14 @@ void FOcclusionSceneViewExtension::PostRenderBasePassDeferred_RenderThread(FRDGB
 			{
 				// Objects can start to die in this frame (since it runs 1 frame later than the code outside of this task).
 				// We detect them here and stop processing them if so.
-				if(!Component || !Component->IsRegistered() || Component->HasAnyFlags(RF_MirroredGarbage) ||
-					Component->HasAnyFlags(RF_BeginDestroyed) ||
-					!Component->GetWorld()->HasAnyFlags(RF_WasLoaded) ||
-					Component->IsBeingDestroyed())
+				if (!USoftwareOCSubsystem::CheckComponentValidWorld(Component, OcSubsystem) ||
+					!USoftwareOCSubsystem::CheckComponentNotBeingDestroyed(Component))
 				{
 					return;
 				}
 
 				// Paranoid Sanity Check.
-				if(!Scene->World || !IsValid(Scene->World) || Scene->World->IsBeingCleanedUp() || Scene->World->HasAnyFlags(RF_MirroredGarbage) || Scene->World->HasAnyFlags(RF_BeginDestroyed))
-				{
-					return;
-				}
-				
-				if(!IsValid(Component) || !Component->GetWorld())
+				if(!IsSceneWorldValid(Scene))
 				{
 					return;
 				}
@@ -184,7 +155,7 @@ void FOcclusionSceneViewExtension::PostRenderBasePassDeferred_RenderThread(FRDGB
 				OccludedColour = FColor::Yellow;
 			}
 
-			// DrawDebugBox throws an error if we try draw immediately. We should until the world has been alive
+			// DrawDebugBox throws an error if we try draw immediately. We should wait until the world has been alive
 			// for a bit to actually draw debug stuff.
 			if(Component->GetWorld() && Component->GetWorld()->GetRealTimeSeconds() >= 1)
 			{
@@ -218,4 +189,10 @@ void FOcclusionSceneViewExtension::PostRenderBasePassDeferred_RenderThread(FRDGB
 	const FScreenPassRenderTarget Output(ViewFamilyTexture, View->UnconstrainedViewRect, ERenderTargetLoadAction::ELoad);
 	
 	SceneSoftwareOcclusion->DebugDraw(GraphBuilder, *View, Output, 20, 20);
+}
+
+bool FOcclusionSceneViewExtension::IsSceneWorldValid(const FScene* InScene)
+{
+	return InScene && InScene->World && IsValid(InScene->World) && !InScene->World->IsBeingCleanedUp() && !InScene->World->HasAnyFlags(RF_BeginDestroyed) &&
+		InScene->World->HasAnyFlags(RF_WasLoaded);
 }
